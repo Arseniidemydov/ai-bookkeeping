@@ -1,75 +1,76 @@
 
 import { useState } from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const data = [
-  { name: "Jan", profit: 4000, loss: -2400 },
-  { name: "Feb", profit: 3000, loss: -1398 },
-  { name: "Mar", profit: 2000, loss: -9800 },
-  { name: "Apr", profit: 2780, loss: -3908 },
-  { name: "May", profit: 1890, loss: -4800 },
-  { name: "Jun", profit: 2390, loss: -3800 },
+interface FinancialMetric {
+  label: string;
+  value: number;
+  type: 'income' | 'expense' | 'tax' | 'net';
+}
+
+const financialData: FinancialMetric[] = [
+  { label: "Total Income", value: 204602.88, type: 'income' },
+  { label: "Total Expenses", value: 69241.00, type: 'expense' },
+  { label: "Estimated Tax (30%)", value: 40708.16, type: 'tax' },
+  { label: "Net Income", value: 94653.72, type: 'net' },
 ];
 
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(value);
+  };
+
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200 transition-all duration-300 ease-in-out",
+        "fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-lg border-b border-gray-800 transition-all duration-300 ease-in-out",
         isExpanded ? "h-screen" : "h-48"
       )}
     >
       <div className="p-4 h-full">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">Profit & Loss</h2>
+          <h2 className="text-lg font-semibold text-gray-100">Financial Overview</h2>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-800 rounded-full transition-colors"
           >
             {isExpanded ? (
-              <Minimize2 className="w-5 h-5 text-gray-600" />
+              <Minimize2 className="w-5 h-5 text-gray-300" />
             ) : (
-              <Maximize2 className="w-5 h-5 text-gray-600" />
+              <Maximize2 className="w-5 h-5 text-gray-300" />
             )}
           </button>
         </div>
-        <div className={cn("h-[calc(100%-3rem)]", !isExpanded && "h-32")}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Area
-                type="monotone"
-                dataKey="profit"
-                stroke="#10B981"
-                fillOpacity={1}
-                fill="url(#colorProfit)"
-              />
-              <Area
-                type="monotone"
-                dataKey="loss"
-                stroke="#EF4444"
-                fillOpacity={1}
-                fill="url(#colorLoss)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {financialData.map((metric) => (
+            <div
+              key={metric.label}
+              className={cn(
+                "p-4 rounded-lg backdrop-blur-sm border",
+                metric.type === 'income' && "bg-green-950/50 border-green-800",
+                metric.type === 'expense' && "bg-red-950/50 border-red-800",
+                metric.type === 'tax' && "bg-yellow-950/50 border-yellow-800",
+                metric.type === 'net' && "bg-blue-950/50 border-blue-800"
+              )}
+            >
+              <p className="text-sm text-gray-400">{metric.label}</p>
+              <p className={cn(
+                "text-lg font-semibold mt-1",
+                metric.type === 'income' && "text-green-400",
+                metric.type === 'expense' && "text-red-400",
+                metric.type === 'tax' && "text-yellow-400",
+                metric.type === 'net' && "text-blue-400"
+              )}>
+                {formatCurrency(metric.value)}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
