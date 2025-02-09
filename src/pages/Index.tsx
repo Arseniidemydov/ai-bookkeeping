@@ -48,7 +48,7 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen bg-gray-900 flex flex-col">
+    <div className="h-screen bg-[#1A1F2C] flex flex-col">
       <Dashboard />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">
@@ -60,7 +60,7 @@ const Index = () => {
           ))}
         </div>
       </div>
-      <div className="sticky bottom-0">
+      <div className="sticky bottom-0 border-t border-white/10">
         <ChatInput onSend={handleSendMessage} />
       </div>
     </div>

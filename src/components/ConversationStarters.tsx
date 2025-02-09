@@ -21,13 +21,13 @@ interface ConversationStartersProps {
 export function ConversationStarters({ onSelect }: ConversationStartersProps) {
   return (
     <div className="px-4 py-6 space-y-3">
-      <h3 className="text-lg font-semibold text-gray-200 mb-4">Conversation starters</h3>
+      <h3 className="text-lg font-semibold text-white/90 mb-4">Conversation starters</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {starters.map((starter) => (
           <button
             key={starter.text}
             onClick={() => onSelect(starter.text)}
-            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 border border-gray-700 text-gray-300 transition-colors duration-200"
+            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[#222222] hover:bg-[#2a2a2a] border border-white/10 text-white/80 transition-colors duration-200"
           >
             {starter.icon}
             <span>{starter.text}</span>
