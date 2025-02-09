@@ -1,11 +1,59 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from "react";
+import { Dashboard } from "@/components/Dashboard";
+import { ChatMessage } from "@/components/ChatMessage";
+import { ChatInput } from "@/components/ChatInput";
+
+interface Message {
+  id: number;
+  content: string;
+  sender: "user" | "other";
+  timestamp: string;
+}
 
 const Index = () => {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 1,
+      content: "Hi there! How can I help you today?",
+      sender: "other",
+      timestamp: "09:00 AM",
+    },
+  ]);
+
+  const handleSendMessage = (content: string) => {
+    const newMessage: Message = {
+      id: messages.length + 1,
+      content,
+      sender: "user",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+    setMessages([...messages, newMessage]);
+
+    // Simulate response
+    setTimeout(() => {
+      const response: Message = {
+        id: messages.length + 2,
+        content: "Thanks for your message! I'll get back to you soon.",
+        sender: "other",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages((prev) => [...prev, response]);
+    }, 1000);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="h-screen bg-gray-50 flex flex-col">
+      <Dashboard />
+      <div className="flex-1 overflow-y-auto pt-48 px-4">
+        <div className="max-w-2xl mx-auto">
+          {messages.map((message) => (
+            <ChatMessage key={message.id} {...message} />
+          ))}
+        </div>
+      </div>
+      <div className="sticky bottom-0">
+        <ChatInput onSend={handleSendMessage} />
       </div>
     </div>
   );
