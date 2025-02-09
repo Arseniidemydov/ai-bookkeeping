@@ -20,6 +20,42 @@ const Index = () => {
       sender: "other",
       timestamp: "09:00 AM",
     },
+    {
+      id: 2,
+      content: "Add expense",
+      sender: "user",
+      timestamp: "09:01 AM",
+    },
+    {
+      id: 3,
+      content: "Which category?",
+      sender: "other",
+      timestamp: "09:01 AM",
+    },
+    {
+      id: 4,
+      content: "Business dinner",
+      sender: "user",
+      timestamp: "09:02 AM",
+    },
+    {
+      id: 5,
+      content: "With whom?",
+      sender: "other",
+      timestamp: "09:02 AM",
+    },
+    {
+      id: 6,
+      content: "With Michael",
+      sender: "user",
+      timestamp: "09:03 AM",
+    },
+    {
+      id: 7,
+      content: "Expense added",
+      sender: "other",
+      timestamp: "09:03 AM",
+    },
   ]);
 
   const handleSendMessage = (content: string) => {
@@ -48,7 +84,7 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen bg-[#1A1F2C] flex flex-col">
+    <div className="h-screen bg-[#f3f3f3] flex flex-col">
       <Dashboard />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">
