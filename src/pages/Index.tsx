@@ -101,7 +101,7 @@ const Index = () => {
       const userMessage: Message = {
         id: savedUserMessage.id,
         content: savedUserMessage.content,
-        sender: savedUserMessage.sender,
+        sender: savedUserMessage.sender as "user" | "other",
         timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit"
@@ -122,7 +122,7 @@ const Index = () => {
       const assistantMessage: Message = {
         id: savedGptMessage.id,
         content: savedGptMessage.content,
-        sender: savedGptMessage.sender,
+        sender: savedGptMessage.sender as "user" | "other",
         timestamp: new Date(savedGptMessage.timestamp).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit"
