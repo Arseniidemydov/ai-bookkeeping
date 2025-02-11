@@ -1,10 +1,12 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ConversationStarters } from "@/components/ConversationStarters";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Message {
   id: number;
@@ -13,32 +15,59 @@ interface Message {
   timestamp: string;
 }
 
-const chatHistory = "chat_history";
-
 const Index = () => {
-  // Load chat history from localStorage
-  const loadChatHistory = (): Message[] => {
-    const saved = localStorage.getItem(chatHistory);
-    if (saved) {
-      return JSON.parse(saved);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Fetch chat history
+  const { data: chatHistory, isLoading } = useQuery({
+    queryKey: ['chat-history'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        toast.error("Failed to load chat history");
+        throw error;
+      }
+
+      return data || [];
+    },
+  });
+
+  // Update messages when chat history is loaded
+  useEffect(() => {
+    if (chatHistory) {
+      const formattedMessages = chatHistory.map((msg: any) => ({
+        id: msg.id,
+        content: msg.content,
+        sender: msg.sender,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { 
+          hour: "2-digit", 
+          minute: "2-digit" 
+        }),
+      }));
+      setMessages(formattedMessages);
     }
-    return [
-      {
-        id: 1,
-        content: "Hi there! How can I help you today?",
-        sender: "other",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      },
-    ];
-  };
+  }, [chatHistory]);
 
-  const [messages, setMessages] = useState<Message[]>(loadChatHistory());
+  // Save message mutation
+  const saveMutation = useMutation({
+    mutationFn: async (message: Omit<Message, 'id' | 'timestamp'>) => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .insert([{
+          content: message.content,
+          sender: message.sender,
+        }])
+        .select()
+        .single();
 
-  // Save messages to localStorage whenever they change
-  const saveMessages = (newMessages: Message[]) => {
-    localStorage.setItem(chatHistory, JSON.stringify(newMessages));
-    setMessages(newMessages);
-  };
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // GPT chat mutation
   const chatMutation = useMutation({
@@ -61,40 +90,48 @@ const Index = () => {
   });
 
   const handleSendMessage = async (content: string) => {
-    const newMessage: Message = {
-      id: messages.length + 1,
-      content,
-      sender: "user",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    
-    // Save user message
-    const updatedMessages = [...messages, newMessage];
-    saveMessages(updatedMessages);
-
     try {
+      // Save user message
+      const savedUserMessage = await saveMutation.mutateAsync({
+        content,
+        sender: "user",
+      });
+
+      // Update UI with user message
+      const userMessage: Message = {
+        id: savedUserMessage.id,
+        content: savedUserMessage.content,
+        sender: savedUserMessage.sender,
+        timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        }),
+      };
+      setMessages(prev => [...prev, userMessage]);
+
       // Get GPT response
       const gptResponse = await chatMutation.mutateAsync(content);
-      
-      // Add GPT response to messages
-      const assistantMessage: Message = {
-        id: updatedMessages.length + 1,
+
+      // Save GPT response
+      const savedGptMessage = await saveMutation.mutateAsync({
         content: gptResponse,
         sender: "other",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+
+      // Update UI with GPT response
+      const assistantMessage: Message = {
+        id: savedGptMessage.id,
+        content: savedGptMessage.content,
+        sender: savedGptMessage.sender,
+        timestamp: new Date(savedGptMessage.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        }),
       };
-      
-      saveMessages([...updatedMessages, assistantMessage]);
+      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
-      console.error("Failed to get GPT response:", error);
-      // Add error message
-      const errorMessage: Message = {
-        id: updatedMessages.length + 1,
-        content: "Sorry, I couldn't process your request. Please try again.",
-        sender: "other",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      saveMessages([...updatedMessages, errorMessage]);
+      console.error("Error in chat flow:", error);
+      toast.error("Failed to process message. Please try again.");
     }
   };
 
@@ -102,12 +139,18 @@ const Index = () => {
     handleSendMessage(text);
   };
 
+  if (isLoading) {
+    return <div className="h-screen bg-[#f3f3f3] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+    </div>;
+  }
+
   return (
     <div className="h-screen bg-[#f3f3f3] flex flex-col">
       <Dashboard />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">
-          {messages.length === 1 && (
+          {messages.length === 0 && (
             <ConversationStarters onSelect={handleStarterSelect} />
           )}
           {messages.map((message) => (
