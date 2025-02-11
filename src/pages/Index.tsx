@@ -22,9 +22,16 @@ const Index = () => {
   const { data: chatHistory, isLoading } = useQuery({
     queryKey: ['chat-history'],
     queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session?.session?.user) {
+        return [];
+      }
+
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
+        .eq('user_id', session.session.user.id)
         .order('timestamp', { ascending: true });
 
       if (error) {
@@ -55,11 +62,18 @@ const Index = () => {
   // Save message mutation
   const saveMutation = useMutation({
     mutationFn: async (message: Omit<Message, 'id' | 'timestamp'>) => {
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session?.session?.user) {
+        throw new Error("User not authenticated");
+      }
+
       const { data, error } = await supabase
         .from('chat_messages')
         .insert([{
           content: message.content,
           sender: message.sender,
+          user_id: session.session.user.id
         }])
         .select()
         .single();
@@ -91,6 +105,13 @@ const Index = () => {
 
   const handleSendMessage = async (content: string) => {
     try {
+      // Check authentication
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error("Please sign in to send messages");
+        return;
+      }
+
       // Save user message
       const savedUserMessage = await saveMutation.mutateAsync({
         content,
