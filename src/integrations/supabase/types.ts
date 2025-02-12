@@ -14,6 +14,7 @@ export type Database = {
           content: string
           id: number
           sender: string
+          thread_id: string | null
           timestamp: string | null
           user_id: string | null
         }
@@ -21,6 +22,7 @@ export type Database = {
           content: string
           id?: number
           sender: string
+          thread_id?: string | null
           timestamp?: string | null
           user_id?: string | null
         }
@@ -28,6 +30,7 @@ export type Database = {
           content?: string
           id?: number
           sender?: string
+          thread_id?: string | null
           timestamp?: string | null
           user_id?: string | null
         }
