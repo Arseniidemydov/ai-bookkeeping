@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
@@ -17,6 +17,17 @@ interface Message {
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
+
+  // Auto scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   // Fetch chat history
   const { data: chatHistory, isLoading } = useQuery({
@@ -73,7 +84,8 @@ const Index = () => {
         .insert([{
           content: message.content,
           sender: message.sender,
-          user_id: session.session.user.id
+          user_id: session.session.user.id,
+          thread_id: threadId
         }])
         .select()
         .single();
@@ -94,12 +106,17 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke('generate-response', {
         body: { 
           prompt: message,
-          userId: session.session.user.id
+          userId: session.session.user.id,
+          threadId: threadId
         },
       });
 
       if (error) {
         throw new Error("Failed to generate response");
+      }
+
+      if (data.threadId && !threadId) {
+        setThreadId(data.threadId);
       }
 
       return data.generatedText;
@@ -174,12 +191,27 @@ const Index = () => {
       <Dashboard />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">
-          {messages.length === 0 && (
+          {messages.length === 0 ? (
             <ConversationStarters onSelect={handleStarterSelect} />
+          ) : (
+            <>
+              {messages.map((message) => (
+                <ChatMessage key={message.id} {...message} />
+              ))}
+              {chatMutation.isPending && (
+                <div className="flex justify-start mb-4">
+                  <div className="bg-[#222222] text-white rounded-2xl rounded-tl-none px-4 py-2.5">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </>
           )}
-          {messages.map((message) => (
-            <ChatMessage key={message.id} {...message} />
-          ))}
         </div>
       </div>
       <div className="sticky bottom-0 border-t border-white/10">

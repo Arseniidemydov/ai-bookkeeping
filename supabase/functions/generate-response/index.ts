@@ -13,24 +13,20 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate OpenAI API key
     if (!openAIApiKey) {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const { prompt, userId } = await req.json();
-    console.log('Received request:', { prompt, userId });
+    const { prompt, userId, threadId } = await req.json();
+    console.log('Received request:', { prompt, userId, threadId });
     
-    // Initialize Supabase client
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
-    // Fetch user's transactions
     const { data: transactions, error: txError } = await supabase
       .from('transactions')
       .select('*')
@@ -39,40 +35,36 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Prepare transactions context
     const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
-    console.log('Fetched transactions for context');
 
-    // Create a thread with error response checking
-    const threadResponse = await fetch('https://api.openai.com/v1/threads', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+    // Use existing thread or create new one
+    let currentThreadId = threadId;
+    if (!currentThreadId) {
+      const threadResponse = await fetch('https://api.openai.com/v1/threads', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v2'
+        }
+      });
+
+      if (!threadResponse.ok) {
+        const errorData = await threadResponse.text();
+        throw new Error(`Failed to create thread: ${threadResponse.status} ${errorData}`);
       }
-    });
 
-    if (!threadResponse.ok) {
-      const errorData = await threadResponse.text();
-      console.error('Thread creation failed with status:', threadResponse.status, 'Error:', errorData);
-      throw new Error(`Failed to create thread: ${threadResponse.status} ${errorData}`);
+      const thread = await threadResponse.json();
+      currentThreadId = thread.id;
     }
 
-    const thread = await threadResponse.json();
-    if (!thread.id) {
-      console.error('Thread creation failed - invalid response:', thread);
-      throw new Error('Failed to create thread - invalid response format');
-    }
-    console.log('Created thread:', thread.id);
-
-    // Add a message to the thread
-    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+    // Add message to thread
+    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+        'OpenAI-Beta': 'assistants=v2'
       },
       body: JSON.stringify({
         role: 'user',
@@ -84,15 +76,14 @@ serve(async (req) => {
       const errorData = await messageResponse.text();
       throw new Error(`Failed to add message: ${messageResponse.status} ${errorData}`);
     }
-    console.log('Added message to thread');
 
     // Run the assistant
-    const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
+    const runResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+        'OpenAI-Beta': 'assistants=v2'
       },
       body: JSON.stringify({
         assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
@@ -105,35 +96,32 @@ serve(async (req) => {
     }
 
     const run = await runResponse.json();
-    console.log('Started assistant run:', run.id);
-
+    
     // Poll for completion
-    let runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+    let runStatus = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
-        'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+        'OpenAI-Beta': 'assistants=v2'
       }
     });
     
     let runStatusData = await runStatus.json();
-    console.log('Initial run status:', runStatusData.status);
     
     let attempts = 0;
     const maxAttempts = 60;
-    const checkInterval = 1000; // 1 second
+    const checkInterval = 1000;
 
     while (runStatusData.status === 'in_progress' || runStatusData.status === 'queued') {
       if (attempts >= maxAttempts) {
         throw new Error('Assistant run timed out');
       }
       
-      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}, status: ${runStatusData.status}`);
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       
-      runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+      runStatus = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
-          'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+          'OpenAI-Beta': 'assistants=v2'
         }
       });
       
@@ -146,10 +134,10 @@ serve(async (req) => {
     }
 
     // Get the messages
-    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
-        'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+        'OpenAI-Beta': 'assistants=v2'
       }
     });
 
@@ -159,9 +147,8 @@ serve(async (req) => {
     }
 
     const messages = await messagesResponse.json();
-    console.log('Retrieved messages');
-
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
+    
     if (!assistantMessage) {
       throw new Error('No assistant message found in response');
     }
@@ -170,9 +157,11 @@ serve(async (req) => {
     if (!generatedText) {
       throw new Error('No valid response content found');
     }
-    console.log('Successfully generated response');
 
-    return new Response(JSON.stringify({ generatedText }), {
+    return new Response(JSON.stringify({ 
+      generatedText,
+      threadId: currentThreadId
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
