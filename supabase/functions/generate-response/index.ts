@@ -1,8 +1,11 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,13 +13,27 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { prompt } = await req.json();
+    const { prompt, userId } = await req.json();
+    
+    // Initialize Supabase client
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+
+    // Fetch user's transactions
+    const { data: transactions, error: txError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (txError) throw txError;
+
+    // Prepare transactions context
+    const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -29,7 +46,10 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: 'You are a helpful assistant that helps users manage their expenses and financial tasks. Be concise and professional in your responses.'
+            content: `You are a financial assistant (ID: asst_wn94DpzGVJKBFLR4wkh7btD2) that helps users manage their expenses and financial tasks. 
+            Here are the user's recent transactions: ${transactionsContext}
+            Use this transaction data to provide personalized insights and answers.
+            Be concise and professional in your responses.`
           },
           { role: 'user', content: prompt }
         ],

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { ChatMessage } from "@/components/ChatMessage";
@@ -86,8 +85,16 @@ const Index = () => {
   // GPT chat mutation
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        throw new Error("User not authenticated");
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-response', {
-        body: { prompt: message },
+        body: { 
+          prompt: message,
+          userId: session.session.user.id
+        },
       });
 
       if (error) {

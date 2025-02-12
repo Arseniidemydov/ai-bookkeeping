@@ -51,6 +51,39 @@ export type Database = {
         }
         Relationships: []
       }
+      transactions: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string | null
+          date: string | null
+          description: string | null
+          id: number
+          type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          category?: string | null
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          id?: number
+          type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          id?: number
+          type?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       Users: {
         Row: {
           created_at: string

@@ -1,7 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 interface FinancialMetric {
   label: string;
@@ -9,15 +11,41 @@ interface FinancialMetric {
   type: 'income' | 'expense' | 'tax' | 'net';
 }
 
-const financialData: FinancialMetric[] = [
-  { label: "Total Income", value: 204602.88, type: 'income' },
-  { label: "Total Expenses", value: 69241.00, type: 'expense' },
-  { label: "Estimated Tax (30%)", value: 40708.16, type: 'tax' },
-  { label: "Net Income", value: 94653.72, type: 'net' },
-];
-
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const { data: financialData } = useQuery({
+    queryKey: ['financial-metrics'],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return null;
+
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', session.session.user.id);
+
+      if (error) throw error;
+
+      const totalIncome = transactions
+        ?.filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+
+      const totalExpenses = transactions
+        ?.filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+
+      const estimatedTax = totalIncome * 0.3;
+      const netIncome = totalIncome - totalExpenses - estimatedTax;
+
+      return [
+        { label: "Total Income", value: totalIncome, type: 'income' },
+        { label: "Total Expenses", value: totalExpenses, type: 'expense' },
+        { label: "Estimated Tax (30%)", value: estimatedTax, type: 'tax' },
+        { label: "Net Income", value: netIncome, type: 'net' },
+      ] as FinancialMetric[];
+    },
+  });
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -29,7 +57,7 @@ export function Dashboard() {
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-lg border-b border-gray-800 transition-all duration-300 ease-in-out",
+        "fixed top-0 left-0 right-0 z-50 bg-gray-900 backdrop-blur-lg border-b border-gray-800 transition-all duration-300 ease-in-out",
         isExpanded ? "h-screen" : "h-48"
       )}
     >
@@ -48,7 +76,7 @@ export function Dashboard() {
           </button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {financialData.map((metric) => (
+          {financialData?.map((metric) => (
             <div
               key={metric.label}
               className={cn(
