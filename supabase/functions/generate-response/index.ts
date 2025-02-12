@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -18,6 +17,11 @@ serve(async (req) => {
   }
 
   try {
+    // Validate OpenAI API key
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
+
     const { prompt, userId } = await req.json();
     console.log('Received request:', { prompt, userId });
     
@@ -37,7 +41,7 @@ serve(async (req) => {
     const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
     console.log('Fetched transactions for context');
 
-    // Create a thread
+    // Create a thread with error response checking
     const threadResponse = await fetch('https://api.openai.com/v1/threads', {
       method: 'POST',
       headers: {
@@ -47,10 +51,16 @@ serve(async (req) => {
       }
     });
 
+    if (!threadResponse.ok) {
+      const errorData = await threadResponse.text();
+      console.error('Thread creation failed with status:', threadResponse.status, 'Error:', errorData);
+      throw new Error(`Failed to create thread: ${threadResponse.status} ${errorData}`);
+    }
+
     const thread = await threadResponse.json();
     if (!thread.id) {
-      console.error('Thread creation failed:', thread);
-      throw new Error('Failed to create thread');
+      console.error('Thread creation failed - invalid response:', thread);
+      throw new Error('Failed to create thread - invalid response format');
     }
     console.log('Created thread:', thread.id);
 
