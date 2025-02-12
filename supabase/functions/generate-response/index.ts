@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -12,6 +13,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -65,7 +67,7 @@ serve(async (req) => {
     console.log('Created thread:', thread.id);
 
     // Add a message to the thread
-    await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
@@ -77,6 +79,11 @@ serve(async (req) => {
         content: `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`
       })
     });
+
+    if (!messageResponse.ok) {
+      const errorData = await messageResponse.text();
+      throw new Error(`Failed to add message: ${messageResponse.status} ${errorData}`);
+    }
     console.log('Added message to thread');
 
     // Run the assistant
@@ -92,11 +99,12 @@ serve(async (req) => {
       })
     });
 
-    const run = await runResponse.json();
-    if (!run.id) {
-      console.error('Run creation failed:', run);
-      throw new Error('Failed to start assistant run');
+    if (!runResponse.ok) {
+      const errorData = await runResponse.text();
+      throw new Error(`Failed to start run: ${runResponse.status} ${errorData}`);
     }
+
+    const run = await runResponse.json();
     console.log('Started assistant run:', run.id);
 
     // Poll for completion
@@ -108,10 +116,6 @@ serve(async (req) => {
     });
     
     let runStatusData = await runStatus.json();
-    if (!runStatusData.status) {
-      console.error('Invalid run status response:', runStatusData);
-      throw new Error('Failed to get run status');
-    }
     console.log('Initial run status:', runStatusData.status);
     
     let attempts = 0;
@@ -134,15 +138,10 @@ serve(async (req) => {
       });
       
       runStatusData = await runStatus.json();
-      if (!runStatusData.status) {
-        console.error('Invalid run status response during polling:', runStatusData);
-        throw new Error('Failed to get run status during polling');
-      }
       attempts++;
     }
 
     if (runStatusData.status !== 'completed') {
-      console.error('Run failed:', runStatusData);
       throw new Error(`Assistant run failed with status: ${runStatusData.status}`);
     }
 
@@ -154,11 +153,12 @@ serve(async (req) => {
       }
     });
 
-    const messages = await messagesResponse.json();
-    if (!messages.data) {
-      console.error('Invalid messages response:', messages);
-      throw new Error('Failed to get messages');
+    if (!messagesResponse.ok) {
+      const errorData = await messagesResponse.text();
+      throw new Error(`Failed to get messages: ${messagesResponse.status} ${errorData}`);
     }
+
+    const messages = await messagesResponse.json();
     console.log('Retrieved messages');
 
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
@@ -168,7 +168,6 @@ serve(async (req) => {
 
     const generatedText = assistantMessage?.content[0]?.text?.value;
     if (!generatedText) {
-      console.error('Invalid message content:', assistantMessage);
       throw new Error('No valid response content found');
     }
     console.log('Successfully generated response');
