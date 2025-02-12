@@ -189,29 +189,24 @@ const Index = () => {
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
       <Dashboard />
+      <ConversationStarters onSelect={handleStarterSelect} />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">
-          {messages.length === 0 ? (
-            <ConversationStarters onSelect={handleStarterSelect} />
-          ) : (
-            <>
-              {messages.map((message) => (
-                <ChatMessage key={message.id} {...message} />
-              ))}
-              {chatMutation.isPending && (
-                <div className="flex justify-start mb-4">
-                  <div className="bg-[#222222] text-white rounded-2xl rounded-tl-none px-4 py-2.5">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.4s]" />
-                    </div>
-                  </div>
+          {messages.map((message) => (
+            <ChatMessage key={message.id} {...message} />
+          ))}
+          {chatMutation.isPending && (
+            <div className="flex justify-start mb-4">
+              <div className="bg-[#222222] text-white rounded-2xl rounded-tl-none px-4 py-2.5">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.2s]" />
+                  <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.4s]" />
                 </div>
-              )}
-              <div ref={messagesEndRef} />
-            </>
+              </div>
+            </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
       </div>
       <div className="sticky bottom-0 border-t border-white/10">
