@@ -134,18 +134,19 @@ serve(async (req) => {
       const toolOutputs = [];
 
       for (const toolCall of toolCalls) {
-        if (toolCall.function.name === 'add_expense') {
+        if (toolCall.function.name === 'add_income') {
           const functionArgs = JSON.parse(toolCall.function.arguments);
-          console.log('Adding expense:', functionArgs);
+          console.log('Adding income:', functionArgs);
 
-          // Add expense to database
+          // Add income to database
           const { error: insertError } = await supabase
             .from('transactions')
             .insert([{
               user_id: userId,
               amount: functionArgs.amount,
-              category: functionArgs.category,
-              type: 'expense'
+              category: functionArgs.source,
+              type: 'income',
+              date: new Date().toISOString()
             }]);
 
           if (insertError) throw insertError;
