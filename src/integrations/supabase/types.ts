@@ -33,38 +33,6 @@ export type Database = {
         }
         Relationships: []
       }
-      Finances: {
-        Row: {
-          created_at: string
-          id: number
-          Income: number | null
-          Loss: number | null
-          User: number | null
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          Income?: number | null
-          Loss?: number | null
-          User?: number | null
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          Income?: number | null
-          Loss?: number | null
-          User?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "Finances_User_fkey"
-            columns: ["User"]
-            isOneToOne: false
-            referencedRelation: "Users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           created_at: string | null
