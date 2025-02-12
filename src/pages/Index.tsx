@@ -86,19 +86,14 @@ const Index = () => {
   // GPT chat mutation
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
-      const response = await fetch("/api/generate-response", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt: message }),
+      const { data, error } = await supabase.functions.invoke('generate-response', {
+        body: { prompt: message },
       });
 
-      if (!response.ok) {
+      if (error) {
         throw new Error("Failed to generate response");
       }
 
-      const data = await response.json();
       return data.generatedText;
     },
   });
