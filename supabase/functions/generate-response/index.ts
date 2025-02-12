@@ -19,6 +19,7 @@ serve(async (req) => {
 
   try {
     const { prompt, userId } = await req.json();
+    console.log('Received request:', { prompt, userId });
     
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
@@ -34,6 +35,7 @@ serve(async (req) => {
 
     // Prepare transactions context
     const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
+    console.log('Fetched transactions for context');
 
     // Create a thread
     const threadResponse = await fetch('https://api.openai.com/v1/threads', {
@@ -46,9 +48,10 @@ serve(async (req) => {
     });
 
     const thread = await threadResponse.json();
+    console.log('Created thread:', thread.id);
 
     // Add a message to the thread
-    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+    await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
@@ -60,6 +63,7 @@ serve(async (req) => {
         content: `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`
       })
     });
+    console.log('Added message to thread');
 
     // Run the assistant
     const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
@@ -75,8 +79,9 @@ serve(async (req) => {
     });
 
     const run = await runResponse.json();
+    console.log('Started assistant run:', run.id);
 
-    // Poll for completion
+    // Poll for completion with increased timeout and better logging
     let runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
@@ -85,23 +90,32 @@ serve(async (req) => {
     });
     
     let runStatusData = await runStatus.json();
+    console.log('Initial run status:', runStatusData.status);
     
-    // Wait for completion (with timeout)
+    // Increased timeout to 60 seconds with more frequent checks
     let attempts = 0;
-    while (runStatusData.status === 'in_progress' && attempts < 30) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    const maxAttempts = 60;
+    const checkInterval = 1000; // 1 second
+
+    while (runStatusData.status === 'in_progress' && attempts < maxAttempts) {
+      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      
       runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
           'OpenAI-Beta': 'assistants=v1'
         }
       });
+      
       runStatusData = await runStatus.json();
+      console.log('Updated run status:', runStatusData.status);
       attempts++;
     }
 
     if (runStatusData.status !== 'completed') {
-      throw new Error('Assistant run did not complete in time');
+      console.error('Run failed or timed out:', runStatusData);
+      throw new Error(`Assistant run failed with status: ${runStatusData.status}`);
     }
 
     // Get the messages
@@ -113,8 +127,15 @@ serve(async (req) => {
     });
 
     const messages = await messagesResponse.json();
+    console.log('Retrieved messages');
+
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
+    if (!assistantMessage) {
+      throw new Error('No assistant message found in response');
+    }
+
     const generatedText = assistantMessage?.content[0]?.text?.value || 'No response generated';
+    console.log('Successfully generated response');
 
     return new Response(JSON.stringify({ generatedText }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
