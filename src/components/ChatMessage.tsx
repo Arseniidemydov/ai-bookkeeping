@@ -8,8 +8,11 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
+  // First, properly format newlines
+  const textWithNewlines = text.replace(/\\n/g, '\n');
+  
   // Split the text into segments based on whether they're bold or not
-  const segments = text.split(/(\*\*.*?\*\*)/g);
+  const segments = textWithNewlines.split(/(\*\*.*?\*\*)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
