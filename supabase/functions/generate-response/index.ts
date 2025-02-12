@@ -48,6 +48,10 @@ serve(async (req) => {
     });
 
     const thread = await threadResponse.json();
+    if (!thread.id) {
+      console.error('Thread creation failed:', thread);
+      throw new Error('Failed to create thread');
+    }
     console.log('Created thread:', thread.id);
 
     // Add a message to the thread
@@ -79,9 +83,13 @@ serve(async (req) => {
     });
 
     const run = await runResponse.json();
+    if (!run.id) {
+      console.error('Run creation failed:', run);
+      throw new Error('Failed to start assistant run');
+    }
     console.log('Started assistant run:', run.id);
 
-    // Poll for completion with increased timeout and better logging
+    // Poll for completion
     let runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
@@ -90,15 +98,22 @@ serve(async (req) => {
     });
     
     let runStatusData = await runStatus.json();
+    if (!runStatusData.status) {
+      console.error('Invalid run status response:', runStatusData);
+      throw new Error('Failed to get run status');
+    }
     console.log('Initial run status:', runStatusData.status);
     
-    // Increased timeout to 60 seconds with more frequent checks
     let attempts = 0;
     const maxAttempts = 60;
     const checkInterval = 1000; // 1 second
 
-    while (runStatusData.status === 'in_progress' && attempts < maxAttempts) {
-      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
+    while (runStatusData.status === 'in_progress' || runStatusData.status === 'queued') {
+      if (attempts >= maxAttempts) {
+        throw new Error('Assistant run timed out');
+      }
+      
+      console.log(`Polling attempt ${attempts + 1}/${maxAttempts}, status: ${runStatusData.status}`);
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       
       runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
@@ -109,12 +124,15 @@ serve(async (req) => {
       });
       
       runStatusData = await runStatus.json();
-      console.log('Updated run status:', runStatusData.status);
+      if (!runStatusData.status) {
+        console.error('Invalid run status response during polling:', runStatusData);
+        throw new Error('Failed to get run status during polling');
+      }
       attempts++;
     }
 
     if (runStatusData.status !== 'completed') {
-      console.error('Run failed or timed out:', runStatusData);
+      console.error('Run failed:', runStatusData);
       throw new Error(`Assistant run failed with status: ${runStatusData.status}`);
     }
 
@@ -127,6 +145,10 @@ serve(async (req) => {
     });
 
     const messages = await messagesResponse.json();
+    if (!messages.data) {
+      console.error('Invalid messages response:', messages);
+      throw new Error('Failed to get messages');
+    }
     console.log('Retrieved messages');
 
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
@@ -134,7 +156,11 @@ serve(async (req) => {
       throw new Error('No assistant message found in response');
     }
 
-    const generatedText = assistantMessage?.content[0]?.text?.value || 'No response generated';
+    const generatedText = assistantMessage?.content[0]?.text?.value;
+    if (!generatedText) {
+      console.error('Invalid message content:', assistantMessage);
+      throw new Error('No valid response content found');
+    }
     console.log('Successfully generated response');
 
     return new Response(JSON.stringify({ generatedText }), {
