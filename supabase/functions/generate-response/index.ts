@@ -129,6 +129,68 @@ serve(async (req) => {
       attempts++;
     }
 
+    if (runStatusData.status === 'requires_action') {
+      const toolCalls = runStatusData.required_action.submit_tool_outputs.tool_calls;
+      const toolOutputs = [];
+
+      for (const toolCall of toolCalls) {
+        if (toolCall.function.name === 'add_expense') {
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+          console.log('Adding expense:', functionArgs);
+
+          // Add expense to database
+          const { error: insertError } = await supabase
+            .from('transactions')
+            .insert([{
+              user_id: userId,
+              amount: functionArgs.amount,
+              category: functionArgs.category,
+              type: 'expense'
+            }]);
+
+          if (insertError) throw insertError;
+
+          toolOutputs.push({
+            tool_call_id: toolCall.id,
+            output: JSON.stringify({ success: true })
+          });
+        }
+      }
+
+      // Submit tool outputs back to assistant
+      const submitResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}/submit_tool_outputs`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v2'
+        },
+        body: JSON.stringify({
+          tool_outputs: toolOutputs
+        })
+      });
+
+      if (!submitResponse.ok) {
+        const errorData = await submitResponse.text();
+        throw new Error(`Failed to submit tool outputs: ${submitResponse.status} ${errorData}`);
+      }
+
+      // Continue polling for completion
+      runStatusData = await submitResponse.json();
+      while (runStatusData.status === 'in_progress' || runStatusData.status === 'queued') {
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        
+        runStatus = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
+          headers: {
+            'Authorization': `Bearer ${openAIApiKey}`,
+            'OpenAI-Beta': 'assistants=v2'
+          }
+        });
+        
+        runStatusData = await runStatus.json();
+      }
+    }
+
     if (runStatusData.status !== 'completed') {
       throw new Error(`Assistant run failed with status: ${runStatusData.status}`);
     }

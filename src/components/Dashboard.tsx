@@ -14,7 +14,7 @@ interface FinancialMetric {
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { data: financialData } = useQuery({
+  const { data: financialData, refetch } = useQuery({
     queryKey: ['financial-metrics'],
     queryFn: async () => {
       const { data: session } = await supabase.auth.getSession();
@@ -46,6 +46,28 @@ export function Dashboard() {
       ] as FinancialMetric[];
     },
   });
+
+  // Subscribe to changes in the transactions table
+  useEffect(() => {
+    const channel = supabase
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions'
+        },
+        () => {
+          refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
