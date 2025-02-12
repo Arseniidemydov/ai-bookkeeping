@@ -6,6 +6,10 @@ interface StarterButton {
   text: string;
 }
 
+interface ConversationStartersProps {
+  onSelect: (text: string) => void;
+}
+
 const starters: StarterButton[] = [
   { icon: <Plus className="w-4 h-4" />, text: "Add expense" },
   { icon: <Plus className="w-4 h-4" />, text: "Add income" },
@@ -14,20 +18,15 @@ const starters: StarterButton[] = [
   { icon: <BarChart2 className="w-4 h-4" />, text: "Tax insights" },
 ];
 
-interface ConversationStartersProps {
-  onSelect: (text: string) => void;
-}
-
 export function ConversationStarters({ onSelect }: ConversationStartersProps) {
   return (
-    <div className="px-4 py-6 space-y-3">
-      <h3 className="text-lg font-semibold text-white/90 mb-4">Conversation starters</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="fixed bottom-24 left-0 right-0 px-4 py-2 bg-gray-900/80 backdrop-blur-lg border-t border-white/10">
+      <div className="max-w-2xl mx-auto flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {starters.map((starter) => (
           <button
             key={starter.text}
             onClick={() => onSelect(starter.text)}
-            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[#222222] hover:bg-[#2a2a2a] border border-white/10 text-white/80 transition-colors duration-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-sm text-white/80 whitespace-nowrap transition-colors border border-white/10"
           >
             {starter.icon}
             <span>{starter.text}</span>
