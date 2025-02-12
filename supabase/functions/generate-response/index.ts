@@ -35,8 +35,20 @@ serve(async (req) => {
     // Prepare transactions context
     const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
 
-    // First call to create an assistant
-    const assistantResponse = await fetch('https://api.openai.com/v1/assistants/asst_wn94DpzGVJKBFLR4wkh7btD2/chat/completions', {
+    // Create a thread
+    const threadResponse = await fetch('https://api.openai.com/v1/threads', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v1'
+      }
+    });
+
+    const thread = await threadResponse.json();
+
+    // Add a message to the thread
+    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
@@ -44,21 +56,65 @@ serve(async (req) => {
         'OpenAI-Beta': 'assistants=v1'
       },
       body: JSON.stringify({
-        messages: [
-          { 
-            role: 'system', 
-            content: `You are a financial assistant that helps users manage their expenses and financial tasks. 
-            Here are the user's recent transactions: ${transactionsContext}
-            Use this transaction data to provide personalized insights and answers.
-            Be concise and professional in your responses.`
-          },
-          { role: 'user', content: prompt }
-        ],
-      }),
+        role: 'user',
+        content: `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`
+      })
     });
 
-    const data = await assistantResponse.json();
-    const generatedText = data.choices[0].message.content;
+    // Run the assistant
+    const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v1'
+      },
+      body: JSON.stringify({
+        assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
+      })
+    });
+
+    const run = await runResponse.json();
+
+    // Poll for completion
+    let runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'OpenAI-Beta': 'assistants=v1'
+      }
+    });
+    
+    let runStatusData = await runStatus.json();
+    
+    // Wait for completion (with timeout)
+    let attempts = 0;
+    while (runStatusData.status === 'in_progress' && attempts < 30) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      runStatus = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'OpenAI-Beta': 'assistants=v1'
+        }
+      });
+      runStatusData = await runStatus.json();
+      attempts++;
+    }
+
+    if (runStatusData.status !== 'completed') {
+      throw new Error('Assistant run did not complete in time');
+    }
+
+    // Get the messages
+    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'OpenAI-Beta': 'assistants=v1'
+      }
+    });
+
+    const messages = await messagesResponse.json();
+    const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
+    const generatedText = assistantMessage?.content[0]?.text?.value || 'No response generated';
 
     return new Response(JSON.stringify({ generatedText }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
