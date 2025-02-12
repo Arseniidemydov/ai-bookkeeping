@@ -189,7 +189,6 @@ const Index = () => {
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
       <Dashboard />
-      <ConversationStarters onSelect={handleStarterSelect} />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">
           {messages.map((message) => (
@@ -209,7 +208,8 @@ const Index = () => {
           <div ref={messagesEndRef} />
         </div>
       </div>
-      <div className="sticky bottom-0 border-t border-white/10">
+      <div className="border-t border-white/10">
+        <ConversationStarters onSelect={handleStarterSelect} />
         <ChatInput onSend={handleSendMessage} />
       </div>
     </div>

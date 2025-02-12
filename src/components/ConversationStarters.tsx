@@ -20,8 +20,8 @@ const starters: StarterButton[] = [
 
 export function ConversationStarters({ onSelect }: ConversationStartersProps) {
   return (
-    <div className="fixed bottom-24 left-0 right-0 px-4 py-2 bg-gray-900/80 backdrop-blur-lg border-t border-white/10">
-      <div className="max-w-2xl mx-auto flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="w-full bg-gray-900/80 backdrop-blur-lg border-t border-white/10">
+      <div className="w-full flex gap-2 overflow-x-auto py-2 px-4">
         {starters.map((starter) => (
           <button
             key={starter.text}

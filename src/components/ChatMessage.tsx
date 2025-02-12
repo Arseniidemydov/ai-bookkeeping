@@ -11,7 +11,7 @@ export function ChatMessage({ content, sender, timestamp }: ChatMessageProps) {
   return (
     <div
       className={cn(
-        "flex mb-4",
+        "flex mb-4 last:mb-24", // Added last:mb-24 for extra padding on the last message
         sender === "user" ? "justify-end" : "justify-start"
       )}
     >
