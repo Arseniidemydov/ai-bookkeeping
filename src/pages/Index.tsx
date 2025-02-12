@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { ChatMessage } from "@/components/ChatMessage";
@@ -169,7 +170,7 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen bg-[#f3f3f3] flex flex-col">
+    <div className="h-screen bg-gray-900 flex flex-col">
       <Dashboard />
       <div className="flex-1 overflow-y-auto pt-48 px-4">
         <div className="max-w-2xl mx-auto">

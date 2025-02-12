@@ -35,18 +35,19 @@ serve(async (req) => {
     // Prepare transactions context
     const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // First call to create an assistant
+    const assistantResponse = await fetch('https://api.openai.com/v1/assistants/asst_wn94DpzGVJKBFLR4wkh7btD2/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v1'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
         messages: [
           { 
             role: 'system', 
-            content: `You are a financial assistant (ID: asst_wn94DpzGVJKBFLR4wkh7btD2) that helps users manage their expenses and financial tasks. 
+            content: `You are a financial assistant that helps users manage their expenses and financial tasks. 
             Here are the user's recent transactions: ${transactionsContext}
             Use this transaction data to provide personalized insights and answers.
             Be concise and professional in your responses.`
@@ -56,7 +57,7 @@ serve(async (req) => {
       }),
     });
 
-    const data = await response.json();
+    const data = await assistantResponse.json();
     const generatedText = data.choices[0].message.content;
 
     return new Response(JSON.stringify({ generatedText }), {
