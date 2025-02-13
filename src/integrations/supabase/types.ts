@@ -45,6 +45,68 @@ export type Database = {
         }
         Relationships: []
       }
+      document_pages: {
+        Row: {
+          created_at: string | null
+          document_id: string | null
+          id: string
+          image_url: string
+          page_number: number
+        }
+        Insert: {
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          image_url: string
+          page_number: number
+        }
+        Update: {
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          image_url?: string
+          page_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_pages_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          created_at: string | null
+          file_url: string
+          id: string
+          original_name: string
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_url: string
+          id?: string
+          original_name: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_url?: string
+          id?: string
+          original_name?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
