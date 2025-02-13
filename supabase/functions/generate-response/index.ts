@@ -41,6 +41,26 @@ async function createThread() {
   return thread.id;
 }
 
+async function processImageWithOCR(fileUrl: string) {
+  console.log('Processing image with OCR:', fileUrl);
+  const response = await fetch(`${supabaseUrl}/functions/v1/process-image`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${supabaseServiceKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ imageUrl: fileUrl })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to process image: ${error}`);
+  }
+
+  const { text } = await response.json();
+  return text;
+}
+
 async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
   let messageContent = [];
   
@@ -52,16 +72,28 @@ async function addMessageToThread(threadId: string, content: string, fileUrl?: s
     });
   }
   
-  // Add image content if URL is provided
+  // Process file if URL is provided
   if (fileUrl) {
-    const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-    if (isImage) {
-      messageContent.push({
-        type: 'image_url',
-        image_url: {
-          url: fileUrl
-        }
-      });
+    try {
+      const extractedText = await processImageWithOCR(fileUrl);
+      if (extractedText) {
+        messageContent.push({
+          type: 'text',
+          text: `Extracted text from image:\n${extractedText}`
+        });
+      }
+    } catch (error) {
+      console.error('Error processing image:', error);
+      // Still include the image URL for OpenAI's vision model as backup
+      const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+      if (isImage) {
+        messageContent.push({
+          type: 'image_url',
+          image_url: {
+            url: fileUrl
+          }
+        });
+      }
     }
   }
 
