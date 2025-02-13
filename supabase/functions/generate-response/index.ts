@@ -132,7 +132,7 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4-1106-preview', // Fixed model name
+      model: 'gpt-4o-mini', // Changed to vision-capable model
       tools: [
         {
           "type": "function",
