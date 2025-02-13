@@ -6,6 +6,7 @@ import { LoadingSpinner } from "./chat/LoadingSpinner";
 import { MessagesList } from "./chat/MessagesList";
 import { useChat } from "@/hooks/useChat";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client"; // Add this import
 
 export const ChatContainer = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
