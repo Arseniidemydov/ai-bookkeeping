@@ -1,24 +1,53 @@
 
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { subDays, subMonths, startOfDay, endOfDay } from "date-fns";
+import { subDays, subMonths, startOfDay, endOfDay, format } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
 
 type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
+
+interface Transaction {
+  id: number;
+  amount: number;
+  category: string;
+  date: string;
+  type: 'income' | 'expense';
+  description?: string;
+}
 
 interface FinancialMetric {
   label: string;
   value: number;
   type: 'income' | 'expense' | 'tax' | 'net';
+  transactions?: Transaction[];
 }
 
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('month');
+  const [selectedTransactions, setSelectedTransactions] = useState<Transaction[]>([]);
+  const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   const getDateRange = (period: TimePeriod) => {
     const now = new Date();
@@ -53,6 +82,29 @@ export function Dashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/auth');
+  };
+
+  const handleDeleteTransaction = async (transactionId: number) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId);
+
+      if (error) throw error;
+
+      toast.success('Transaction deleted successfully');
+      setSelectedTransactions(prev => prev.filter(t => t.id !== transactionId));
+      refetch();
+    } catch (error) {
+      toast.error('Failed to delete transaction');
+      console.error('Error deleting transaction:', error);
+    }
+  };
+
   const {
     data: financialData,
     refetch
@@ -71,21 +123,26 @@ export function Dashboard() {
       const { data: transactions, error } = await query;
       if (error) throw error;
 
-      const totalIncome = transactions?.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0) || 0;
-      const totalExpenses = transactions?.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0) || 0;
-      const estimatedTax = totalIncome * 0.3;
+      const incomeTransactions = transactions?.filter(t => t.type === 'income') || [];
+      const expenseTransactions = transactions?.filter(t => t.type === 'expense') || [];
+      
+      const totalIncome = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+      const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+      const estimatedTax = (totalIncome - totalExpenses) * 0.25; // Updated tax calculation
       const netIncome = totalIncome - totalExpenses - estimatedTax;
 
       return [{
         label: "Total Income",
         value: totalIncome,
-        type: 'income'
+        type: 'income',
+        transactions: incomeTransactions
       }, {
         label: "Total Expenses",
         value: totalExpenses,
-        type: 'expense'
+        type: 'expense',
+        transactions: expenseTransactions
       }, {
-        label: "Estimated Tax (30%)",
+        label: "Estimated Tax (25%)",
         value: estimatedTax,
         type: 'tax'
       }, {
@@ -97,7 +154,6 @@ export function Dashboard() {
   });
 
   useEffect(() => {
-    // Enable REPLICA IDENTITY FULL for the transactions table
     const channel = supabase.channel('transactions-changes')
       .on(
         'postgres_changes',
@@ -150,6 +206,14 @@ export function Dashboard() {
 
   const visibleMetrics = isMobile && !isExpanded ? financialData?.slice(0, 2) : financialData;
 
+  const handleMetricClick = (metric: FinancialMetric) => {
+    if (metric.type === 'income' || metric.type === 'expense') {
+      setTransactionType(metric.type);
+      setSelectedTransactions(metric.transactions || []);
+      setIsTransactionsOpen(true);
+    }
+  };
+
   return (
     <div className={cn("fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
       isExpanded ? "h-screen" : "h-64"
@@ -183,8 +247,9 @@ export function Dashboard() {
           {visibleMetrics?.map(metric => (
             <div
               key={metric.label}
+              onClick={() => handleMetricClick(metric)}
               className={cn(
-                "p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto",
+                "p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80",
                 metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50",
                 metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50",
                 metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50",
@@ -204,7 +269,71 @@ export function Dashboard() {
             </div>
           ))}
         </div>
+
+        {isExpanded && (
+          <div className="mt-4 flex justify-center">
+            <Button variant="destructive" onClick={handleLogout}>
+              Log out
+            </Button>
+          </div>
+        )}
       </div>
+
+      <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{transactionType === 'income' ? 'Income' : 'Expense'} Transactions</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {selectedTransactions.map((transaction) => (
+              <div
+                key={transaction.id}
+                className="flex items-center justify-between p-4 border-b border-gray-200 last:border-0"
+              >
+                <div className="flex-1">
+                  <p className="font-medium">{transaction.category}</p>
+                  <p className="text-sm text-gray-500">
+                    {format(new Date(transaction.date), 'MMM dd, yyyy')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className={cn(
+                    "font-semibold",
+                    transactionType === 'income' ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    {formatCurrency(transaction.amount)}
+                  </span>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <Trash2 className="h-4 w-4 text-gray-500" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete this transaction? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id)}>
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ))}
+            {selectedTransactions.length === 0 && (
+              <p className="text-center text-gray-500 py-4">No transactions found</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
