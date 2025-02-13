@@ -9,7 +9,7 @@ interface ChatMessageProps {
 
 const formatBoldText = (text: string) => {
   // First, properly format newlines
-  const textWithNewlines = text.replace(/\\n/g, '\n');
+  const textWithNewlines = text.replace(/(\d+\.)\s*/g, '\n$1 '); // Add newline before each list item
   
   // Split the text into segments based on whether they're bold or not
   const segments = textWithNewlines.split(/(\*\*.*?\*\*)/g);
@@ -22,7 +22,6 @@ const formatBoldText = (text: string) => {
     }
     // Add proper spacing after periods and numbers in lists
     const formattedText = segment
-      .replace(/(\d+\.)\s*/g, '$1 ') // Add space after list numbers
       .replace(/\.\s*/g, '. ') // Add space after periods
       .replace(/\s+/g, ' '); // Normalize spaces
     
