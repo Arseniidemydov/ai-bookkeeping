@@ -8,11 +8,13 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  // First, properly format newlines
-  const textWithNewlines = text.replace(/(\d+\.)\s*/g, '\n$1 '); // Add newline before each list item
+  // First, properly format newlines and list items
+  let formattedText = text
+    .replace(/\\n/g, '\n')  // Replace \n with actual newlines
+    .replace(/(\d+\.)/g, '\n$1'); // Add newline before numbered items
   
   // Split the text into segments based on whether they're bold or not
-  const segments = textWithNewlines.split(/(\*\*.*?\*\*)/g);
+  const segments = formattedText.split(/(\*\*.*?\*\*)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
@@ -20,12 +22,9 @@ const formatBoldText = (text: string) => {
       const boldText = segment.slice(2, -2);
       return <span key={index} className="font-semibold">{boldText}</span>;
     }
-    // Add proper spacing after periods and numbers in lists
-    const formattedText = segment
-      .replace(/\.\s*/g, '. ') // Add space after periods
-      .replace(/\s+/g, ' '); // Normalize spaces
     
-    return <span key={index}>{formattedText}</span>;
+    // Handle regular text segments
+    return <span key={index}>{segment}</span>;
   });
 };
 
