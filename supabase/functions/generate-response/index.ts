@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -131,7 +132,7 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4o', // Using gpt-4o which supports vision
+      model: 'gpt-4-1106-preview', // Fixed model name
       tools: [
         {
           "type": "function",
