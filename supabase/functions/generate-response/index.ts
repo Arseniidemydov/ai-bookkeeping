@@ -99,7 +99,7 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4-1106-preview', // Updated model name to support vision
+      model: 'gpt-4o', // Using gpt-4o which supports vision
       tools: [
         {
           "type": "function",
