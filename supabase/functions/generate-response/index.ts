@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -123,7 +122,6 @@ async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) 
         });
       } else {
         // For any unhandled tool calls, return a default success response
-        // This prevents the error we were seeing
         console.log('Unhandled tool call:', toolCall.function.name);
         toolOutputs.push({
           tool_call_id: toolCall.id,
@@ -132,7 +130,6 @@ async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) 
       }
     } catch (error) {
       console.error('Error handling tool call:', error);
-      // Even on error, we need to provide a response
       toolOutputs.push({
         tool_call_id: toolCall.id,
         output: JSON.stringify({ success: false, error: error.message })
@@ -237,31 +234,35 @@ serve(async (req) => {
     const maxAttempts = 60;
     const checkInterval = 1000;
 
-    while (runStatusData.status === 'in_progress' || runStatusData.status === 'queued') {
+    while (true) {
+      console.log('Current run status:', runStatusData.status);
+      
+      if (runStatusData.status === 'completed') {
+        break;
+      }
+      
+      if (runStatusData.status === 'failed' || runStatusData.status === 'expired' || runStatusData.status === 'cancelled') {
+        throw new Error(`Run failed with status: ${runStatusData.status}`);
+      }
+      
+      if (runStatusData.status === 'requires_action') {
+        console.log('Run requires action:', runStatusData.required_action);
+        const toolCalls = runStatusData.required_action.submit_tool_outputs.tool_calls;
+        const toolOutputs = await handleToolCalls(toolCalls, userId, supabase);
+        
+        // Submit tool outputs
+        console.log('Submitting tool outputs');
+        await submitToolOutputs(currentThreadId, run.id, toolOutputs);
+      }
+      
       if (attempts >= maxAttempts) {
         throw new Error('Assistant run timed out');
       }
-      
+
+      // Wait before checking status again
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
-    }
-
-    // Handle tool calls if required
-    if (runStatusData.status === 'requires_action') {
-      const toolCalls = runStatusData.required_action.submit_tool_outputs.tool_calls;
-      const toolOutputs = await handleToolCalls(toolCalls, userId, supabase);
-      
-      // Submit tool outputs and continue polling
-      runStatusData = await submitToolOutputs(currentThreadId, run.id, toolOutputs);
-      while (runStatusData.status === 'in_progress' || runStatusData.status === 'queued') {
-        await new Promise(resolve => setTimeout(resolve, checkInterval));
-        runStatusData = await getRunStatus(currentThreadId, run.id);
-      }
-    }
-
-    if (runStatusData.status !== 'completed') {
-      throw new Error(`Assistant run failed with status: ${runStatusData.status}`);
     }
 
     // Get the final messages
