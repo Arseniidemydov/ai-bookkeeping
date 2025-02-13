@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Send, PaperclipIcon, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
@@ -75,7 +76,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
       mediaRecorder.start();
       setIsRecording(true);
-      toast.info("Recording started...");
     } catch (error) {
       console.error('Error accessing microphone:', error);
       if ((error as Error).name === 'NotAllowedError') {
@@ -90,7 +90,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      toast.info("Processing your message...");
     }
   };
 
@@ -109,6 +108,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
       }
 
       if (file.type === 'application/pdf') {
+        setIsProcessingPdf(true);
         try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${crypto.randomUUID()}.${fileExt}`;
@@ -123,10 +123,20 @@ export function ChatInput({ onSend }: ChatInputProps) {
             .from('pdf_pages')
             .getPublicUrl(`original/${fileName}`);
 
-          await processPdfDocument(file, publicUrl);
+          // Process PDF file
+          const { data: processedData, error: processError } = await supabase.functions.invoke('process-pdf', {
+            body: { pdfUrl: publicUrl }
+          });
+
+          if (processError) throw processError;
+
+          // Send the processed text
+          onSend(processedData.text);
         } catch (error) {
           console.error('Error handling PDF:', error);
           toast.error('Failed to process PDF');
+        } finally {
+          setIsProcessingPdf(false);
         }
       } else {
         // For images, just set the file and let the user send it
