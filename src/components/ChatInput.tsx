@@ -30,7 +30,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
     try {
       setIsProcessingPdf(true);
       
-      // Create document record
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) {
         throw new Error("User not authenticated");
@@ -49,7 +48,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
       if (docError) throw docError;
 
-      // Call the process-pdf function
       const { error: processError } = await supabase.functions
         .invoke('process-pdf', {
           body: { documentId: document.id, fileUrl }
@@ -57,10 +55,9 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
       if (processError) throw processError;
 
-      // Wait for document processing to complete
       let processingComplete = false;
       let attempts = 0;
-      const maxAttempts = 30; // 30 seconds timeout
+      const maxAttempts = 30;
       
       while (!processingComplete && attempts < maxAttempts) {
         const { data: updatedDoc, error: checkError } = await supabase
@@ -85,7 +82,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
         throw new Error('PDF processing timed out');
       }
 
-      // Get all processed pages
       const { data: pages, error: pagesError } = await supabase
         .from('document_pages')
         .select('*')
@@ -94,12 +90,14 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
       if (pagesError) throw pagesError;
 
-      // Set message with document ID and pages context
       const pagesContext = pages.map(page => page.image_url).join('\n');
-      setMessage(`I've uploaded a PDF document (${file.name}) for analysis. Here are the processed pages:\n${pagesContext}`);
+      const newMessage = `I've uploaded a PDF document (${file.name}) for analysis. Here are the processed pages:\n${pagesContext}`;
+      setMessage(newMessage);
       
-      toast.success('PDF processed successfully');
-      return document.id;
+      // Automatically send the message once PDF is processed
+      onSend(newMessage);
+      setMessage("");
+      
     } catch (error) {
       console.error('Error processing PDF:', error);
       toast.error('Failed to process PDF');
@@ -112,7 +110,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      if (file.size > 10 * 1024 * 1024) {
         toast.error("File size must be less than 10MB");
         return;
       }
@@ -125,7 +123,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
       if (file.type === 'application/pdf') {
         try {
-          // Upload PDF to storage first
           const fileExt = file.name.split('.').pop();
           const fileName = `${crypto.randomUUID()}.${fileExt}`;
           
@@ -139,14 +136,12 @@ export function ChatInput({ onSend }: ChatInputProps) {
             .from('pdf_pages')
             .getPublicUrl(`original/${fileName}`);
 
-          // Process the PDF
           await processPdfDocument(file, publicUrl);
         } catch (error) {
           console.error('Error handling PDF:', error);
           toast.error('Failed to process PDF');
         }
       } else {
-        // Handle regular image files
         setSelectedFile(file);
       }
     }
@@ -179,8 +174,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
       />
       <button
         type="submit"
-        className="p-2.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-        disabled={isProcessingPdf}
+        className="p-2.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isProcessingPdf || (!message.trim() && !selectedFile)}
       >
         <Send className="w-5 h-5" />
       </button>
