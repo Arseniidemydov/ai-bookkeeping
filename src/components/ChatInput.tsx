@@ -1,9 +1,8 @@
+
 import { useState, useRef } from "react";
-import { Send, PaperclipIcon, LogOut } from "lucide-react";
+import { Send, PaperclipIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 
 interface ChatInputProps {
   onSend: (message: string, file?: File) => void;
@@ -14,7 +13,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,55 +148,38 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/auth');
-  };
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#101010] border-t border-white/10">
-      <div className="w-full flex justify-center p-2 border-b border-white/10">
-        <Button 
-          variant="destructive" 
-          onClick={handleLogout}
-          className="bg-red-600 hover:bg-red-700 text-white font-medium"
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Log out
-        </Button>
-      </div>
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 p-4">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept="image/*,.pdf"
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 transition-colors"
-          disabled={isProcessingPdf}
-        >
-          <PaperclipIcon className="w-5 h-5" />
-        </button>
-        <input
-          type="text"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder={isProcessingPdf ? "Processing PDF..." : selectedFile ? `${selectedFile.name} selected...` : "Message..."}
-          className="flex-1 px-4 py-2.5 rounded-full bg-[#1E1E1E] border border-white/10 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4285F4]/50 focus:border-transparent"
-          disabled={isProcessingPdf}
-        />
-        <button
-          type="submit"
-          className="p-2.5 rounded-full bg-[#4285F4] text-white hover:bg-[#4285F4]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={isProcessingPdf || (!message.trim() && !selectedFile)}
-        >
-          <Send className="w-5 h-5" />
-        </button>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit} className="flex items-center gap-2 p-4 bg-[#222222] border-t border-white/10">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*,.pdf"
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 transition-colors"
+        disabled={isProcessingPdf}
+      >
+        <PaperclipIcon className="w-5 h-5" />
+      </button>
+      <input
+        type="text"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder={isProcessingPdf ? "Processing PDF..." : selectedFile ? `${selectedFile.name} selected...` : "Message..."}
+        className="flex-1 px-4 py-2.5 rounded-full bg-white/5 border border-white/10 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent"
+        disabled={isProcessingPdf}
+      />
+      <button
+        type="submit"
+        className="p-2.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isProcessingPdf || (!message.trim() && !selectedFile)}
+      >
+        <Send className="w-5 h-5" />
+      </button>
+    </form>
   );
 }
