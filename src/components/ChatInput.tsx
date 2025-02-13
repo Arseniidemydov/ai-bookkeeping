@@ -42,6 +42,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
           user_id: session.session.user.id,
           original_name: file.name,
           file_url: fileUrl,
+          status: 'pending'
         })
         .select()
         .single();
@@ -56,6 +57,47 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
       if (processError) throw processError;
 
+      // Wait for document processing to complete
+      let processingComplete = false;
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+      
+      while (!processingComplete && attempts < maxAttempts) {
+        const { data: updatedDoc, error: checkError } = await supabase
+          .from('documents')
+          .select('status')
+          .eq('id', document.id)
+          .single();
+        
+        if (checkError) throw checkError;
+        
+        if (updatedDoc.status === 'completed') {
+          processingComplete = true;
+        } else if (updatedDoc.status === 'error') {
+          throw new Error('Failed to process PDF');
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          attempts++;
+        }
+      }
+
+      if (!processingComplete) {
+        throw new Error('PDF processing timed out');
+      }
+
+      // Get all processed pages
+      const { data: pages, error: pagesError } = await supabase
+        .from('document_pages')
+        .select('*')
+        .eq('document_id', document.id)
+        .order('page_number');
+
+      if (pagesError) throw pagesError;
+
+      // Set message with document ID and pages context
+      const pagesContext = pages.map(page => page.image_url).join('\n');
+      setMessage(`I've uploaded a PDF document (${file.name}) for analysis. Here are the processed pages:\n${pagesContext}`);
+      
       toast.success('PDF processed successfully');
       return document.id;
     } catch (error) {
@@ -98,11 +140,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
             .getPublicUrl(`original/${fileName}`);
 
           // Process the PDF
-          const documentId = await processPdfDocument(file, publicUrl);
-          
-          // Set a custom message about the PDF
-          setMessage(`I've uploaded a PDF document (${file.name}) for analysis. Please help me understand its contents.`);
-          setSelectedFile(null);
+          await processPdfDocument(file, publicUrl);
         } catch (error) {
           console.error('Error handling PDF:', error);
           toast.error('Failed to process PDF');

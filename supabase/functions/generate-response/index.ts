@@ -71,7 +71,8 @@ async function startAssistantRun(threadId: string) {
       'OpenAI-Beta': 'assistants=v2'
     },
     body: JSON.stringify({
-      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
+      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
+      instructions: "You are an AI assistant that helps users analyze documents, including PDFs and images. When analyzing PDFs, carefully examine the content and provide accurate, relevant information about what you find in the document."
     })
   });
 
@@ -190,7 +191,7 @@ serve(async (req) => {
     }
 
     const { prompt, userId, threadId, fileUrl } = await req.json();
-    console.log('Received request:', { prompt, userId, threadId });
+    console.log('Received request:', { prompt, userId, threadId, fileUrl });
     
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
     const transactionsContext = await getTransactionsContext(supabase, userId);
@@ -201,11 +202,28 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
+    // Parse the prompt to extract document pages if present
+    const messageLines = prompt.split('\n');
+    const documentInfo = messageLines[0];
+    const pageUrls = messageLines.slice(1);
+    
     // Prepare message content
-    let messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`;
-    if (fileUrl) {
-      messageContent += `\n\nI have attached a file for analysis: ${fileUrl}`;
+    let messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\n`;
+    
+    if (pageUrls.length > 0) {
+      messageContent += `I have uploaded a PDF document for analysis. Here are the processed pages:\n`;
+      pageUrls.forEach((url: string) => {
+        messageContent += `- ${url}\n`;
+      });
+      messageContent += "\nPlease analyze these pages and provide detailed information about their contents.";
+    } else {
+      messageContent += `Question: ${prompt}`;
+      if (fileUrl) {
+        messageContent += `\n\nI have attached a file for analysis: ${fileUrl}`;
+      }
     }
+
+    console.log('Sending message to OpenAI:', messageContent);
 
     // Add message to thread
     await addMessageToThread(currentThreadId, messageContent);
