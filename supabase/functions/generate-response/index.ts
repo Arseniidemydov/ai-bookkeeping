@@ -43,12 +43,13 @@ async function createThread() {
 }
 
 async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
-  let messageContent = [{
+  const messageContent = [{
     type: 'text',
-    text: content
+    text: {
+      value: content
+    }
   }];
   
-  // If there's a file URL and it's an image, add it as an image content part
   if (fileUrl) {
     const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
     if (isImage) {
@@ -60,6 +61,8 @@ async function addMessageToThread(threadId: string, content: string, fileUrl?: s
       });
     }
   }
+
+  console.log('Sending message with content:', JSON.stringify(messageContent, null, 2));
 
   const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
     method: 'POST',
