@@ -12,6 +12,152 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function getTransactionsContext(supabase: any, userId: string) {
+  const { data: transactions, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: false });
+
+  if (error) throw error;
+  return transactions ? JSON.stringify(transactions) : '[]';
+}
+
+async function createThread() {
+  const response = await fetch('https://api.openai.com/v1/threads', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to create thread: ${response.status} ${errorData}`);
+  }
+
+  const thread = await response.json();
+  return thread.id;
+}
+
+async function addMessageToThread(threadId: string, content: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'assistants=v2'
+    },
+    body: JSON.stringify({
+      role: 'user',
+      content
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to add message: ${response.status} ${errorData}`);
+  }
+}
+
+async function startAssistantRun(threadId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'assistants=v2'
+    },
+    body: JSON.stringify({
+      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to start run: ${response.status} ${errorData}`);
+  }
+
+  return await response.json();
+}
+
+async function getRunStatus(threadId: string, runId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+  return await response.json();
+}
+
+async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) {
+  const toolOutputs = [];
+
+  for (const toolCall of toolCalls) {
+    if (toolCall.function.name === 'add_income') {
+      const functionArgs = JSON.parse(toolCall.function.arguments);
+      console.log('Adding income:', functionArgs);
+
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert([{
+          user_id: userId,
+          amount: functionArgs.amount,
+          category: functionArgs.source,
+          type: 'income',
+          date: new Date().toISOString()
+        }]);
+
+      if (insertError) throw insertError;
+
+      toolOutputs.push({
+        tool_call_id: toolCall.id,
+        output: JSON.stringify({ success: true })
+      });
+    }
+  }
+
+  return toolOutputs;
+}
+
+async function submitToolOutputs(threadId: string, runId: string, toolOutputs: any[]) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/submit_tool_outputs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'assistants=v2'
+    },
+    body: JSON.stringify({ tool_outputs: toolOutputs })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to submit tool outputs: ${response.status} ${errorData}`);
+  }
+
+  return await response.json();
+}
+
+async function getAssistantMessages(threadId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to get messages: ${response.status} ${errorData}`);
+  }
+
+  return await response.json();
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -26,93 +172,28 @@ serve(async (req) => {
     console.log('Received request:', { prompt, userId, threadId });
     
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
-
-    const { data: transactions, error: txError } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: false });
-
-    if (txError) throw txError;
-
-    const transactionsContext = transactions ? JSON.stringify(transactions) : '[]';
+    const transactionsContext = await getTransactionsContext(supabase, userId);
 
     // Use existing thread or create new one
     let currentThreadId = threadId;
     if (!currentThreadId) {
-      const threadResponse = await fetch('https://api.openai.com/v1/threads', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2'
-        }
-      });
-
-      if (!threadResponse.ok) {
-        const errorData = await threadResponse.text();
-        throw new Error(`Failed to create thread: ${threadResponse.status} ${errorData}`);
-      }
-
-      const thread = await threadResponse.json();
-      currentThreadId = thread.id;
+      currentThreadId = await createThread();
     }
 
+    // Prepare message content
     let messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`;
-    
     if (fileUrl) {
       messageContent += `\n\nI have attached a file for analysis: ${fileUrl}`;
     }
 
     // Add message to thread
-    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2'
-      },
-      body: JSON.stringify({
-        role: 'user',
-        content: messageContent
-      })
-    });
+    await addMessageToThread(currentThreadId, messageContent);
 
-    if (!messageResponse.ok) {
-      const errorData = await messageResponse.text();
-      throw new Error(`Failed to add message: ${messageResponse.status} ${errorData}`);
-    }
-
-    // Run the assistant
-    const runResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2'
-      },
-      body: JSON.stringify({
-        assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
-      })
-    });
-
-    if (!runResponse.ok) {
-      const errorData = await runResponse.text();
-      throw new Error(`Failed to start run: ${runResponse.status} ${errorData}`);
-    }
-
-    const run = await runResponse.json();
+    // Start the assistant run
+    const run = await startAssistantRun(currentThreadId);
     
     // Poll for completion
-    let runStatus = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'OpenAI-Beta': 'assistants=v2'
-      }
-    });
-    
-    let runStatusData = await runStatus.json();
-    
+    let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
     const maxAttempts = 60;
     const checkInterval = 1000;
@@ -123,78 +204,20 @@ serve(async (req) => {
       }
       
       await new Promise(resolve => setTimeout(resolve, checkInterval));
-      
-      runStatus = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'OpenAI-Beta': 'assistants=v2'
-        }
-      });
-      
-      runStatusData = await runStatus.json();
+      runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
     }
 
+    // Handle tool calls if required
     if (runStatusData.status === 'requires_action') {
       const toolCalls = runStatusData.required_action.submit_tool_outputs.tool_calls;
-      const toolOutputs = [];
-
-      for (const toolCall of toolCalls) {
-        if (toolCall.function.name === 'add_income') {
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          console.log('Adding income:', functionArgs);
-
-          // Add income to database
-          const { error: insertError } = await supabase
-            .from('transactions')
-            .insert([{
-              user_id: userId,
-              amount: functionArgs.amount,
-              category: functionArgs.source,
-              type: 'income',
-              date: new Date().toISOString()
-            }]);
-
-          if (insertError) throw insertError;
-
-          toolOutputs.push({
-            tool_call_id: toolCall.id,
-            output: JSON.stringify({ success: true })
-          });
-        }
-      }
-
-      // Submit tool outputs back to assistant
-      const submitResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}/submit_tool_outputs`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2'
-        },
-        body: JSON.stringify({
-          tool_outputs: toolOutputs
-        })
-      });
-
-      if (!submitResponse.ok) {
-        const errorData = await submitResponse.text();
-        throw new Error(`Failed to submit tool outputs: ${submitResponse.status} ${errorData}`);
-      }
-
-      // Continue polling for completion
-      runStatusData = await submitResponse.json();
+      const toolOutputs = await handleToolCalls(toolCalls, userId, supabase);
+      
+      // Submit tool outputs and continue polling
+      runStatusData = await submitToolOutputs(currentThreadId, run.id, toolOutputs);
       while (runStatusData.status === 'in_progress' || runStatusData.status === 'queued') {
         await new Promise(resolve => setTimeout(resolve, checkInterval));
-        
-        runStatus = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`, {
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'OpenAI-Beta': 'assistants=v2'
-          }
-        });
-        
-        runStatusData = await runStatus.json();
+        runStatusData = await getRunStatus(currentThreadId, run.id);
       }
     }
 
@@ -202,20 +225,8 @@ serve(async (req) => {
       throw new Error(`Assistant run failed with status: ${runStatusData.status}`);
     }
 
-    // Get the messages
-    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'OpenAI-Beta': 'assistants=v2'
-      }
-    });
-
-    if (!messagesResponse.ok) {
-      const errorData = await messagesResponse.text();
-      throw new Error(`Failed to get messages: ${messagesResponse.status} ${errorData}`);
-    }
-
-    const messages = await messagesResponse.json();
+    // Get the final messages
+    const messages = await getAssistantMessages(currentThreadId);
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
     
     if (!assistantMessage) {
