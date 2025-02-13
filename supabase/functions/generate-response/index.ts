@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -41,7 +42,17 @@ async function createThread() {
   return thread.id;
 }
 
-async function addMessageToThread(threadId: string, content: string) {
+async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
+  let messageContent = content;
+  
+  // If there's a file URL and it's an image, format it for GPT-4 Vision
+  if (fileUrl) {
+    const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+    if (isImage) {
+      messageContent = content + "\n\nImage for analysis: " + fileUrl;
+    }
+  }
+
   const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
     method: 'POST',
     headers: {
@@ -51,7 +62,8 @@ async function addMessageToThread(threadId: string, content: string) {
     },
     body: JSON.stringify({
       role: 'user',
-      content
+      content: messageContent,
+      file_ids: [] // We're not using file_ids as we're passing URLs directly
     })
   });
 
@@ -70,7 +82,56 @@ async function startAssistantRun(threadId: string) {
       'OpenAI-Beta': 'assistants=v2'
     },
     body: JSON.stringify({
-      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
+      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
+      model: 'gpt-4o', // Using gpt-4o which supports vision
+      tools: [
+        {
+          "type": "function",
+          "function": {
+            "name": "add_expense",
+            "description": "Add a new expense transaction",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number",
+                  "description": "The amount of the expense"
+                },
+                "category": {
+                  "type": "string",
+                  "description": "The category of the expense"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description of the expense"
+                }
+              },
+              "required": ["amount", "category"]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "add_income",
+            "description": "Add a new income transaction",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number",
+                  "description": "The amount of the income"
+                },
+                "source": {
+                  "type": "string",
+                  "description": "The source of the income"
+                }
+              },
+              "required": ["amount", "source"]
+            }
+          }
+        }
+      ]
     })
   });
 
@@ -218,21 +279,8 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
-    // Prepare message content with special handling for "Add expense"
-    let messageContent = "";
-    if (prompt === "Add expense") {
-      messageContent = "I want to add a new expense. Please help me with that.";
-    } else {
-      messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`;
-      if (fileUrl) {
-        messageContent += `\n\nI have attached a file for analysis: ${fileUrl}`;
-      }
-    }
-
-    console.log('Sending message to OpenAI:', messageContent);
-
-    // Add message to thread
-    await addMessageToThread(currentThreadId, messageContent);
+    // Add message to thread with proper handling of file URLs
+    await addMessageToThread(currentThreadId, prompt, fileUrl);
 
     // Start the assistant run
     const run = await startAssistantRun(currentThreadId);
