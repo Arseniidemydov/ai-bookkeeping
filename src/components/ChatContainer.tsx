@@ -222,14 +222,14 @@ export const ChatContainer = () => {
 
   if (isLoading) {
     return (
-      <div className="h-screen bg-[#1A1F2C] flex items-center justify-center">
+      <div className="h-screen bg-[#111111] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full relative bg-[#1A1F2C]">
+    <div className="flex-1 flex flex-col h-full relative bg-[#111111]">
       <div className="flex-1 overflow-y-auto pt-48 px-4 pb-32">
         <div className="max-w-2xl mx-auto">
           {messages.map((message) => (
