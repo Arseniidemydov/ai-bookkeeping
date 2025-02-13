@@ -22,7 +22,7 @@ serve(async (req) => {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const { prompt, userId, threadId } = await req.json();
+    const { prompt, userId, threadId, fileUrl } = await req.json();
     console.log('Received request:', { prompt, userId, threadId });
     
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
@@ -58,6 +58,12 @@ serve(async (req) => {
       currentThreadId = thread.id;
     }
 
+    let messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`;
+    
+    if (fileUrl) {
+      messageContent += `\n\nI have attached a file for analysis: ${fileUrl}`;
+    }
+
     // Add message to thread
     const messageResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
       method: 'POST',
@@ -68,7 +74,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         role: 'user',
-        content: `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`
+        content: messageContent
       })
     });
 

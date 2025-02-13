@@ -12,6 +12,9 @@ export type Database = {
       chat_messages: {
         Row: {
           content: string
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
           id: number
           sender: string
           thread_id: string | null
@@ -20,6 +23,9 @@ export type Database = {
         }
         Insert: {
           content: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: number
           sender: string
           thread_id?: string | null
@@ -28,6 +34,9 @@ export type Database = {
         }
         Update: {
           content?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: number
           sender?: string
           thread_id?: string | null
