@@ -1,6 +1,5 @@
-
 import { useState, useRef } from "react";
-import { Send, PaperclipIcon } from "lucide-react";
+import { Send, PaperclipIcon, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,6 +12,9 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,84 +28,69 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
   };
 
-  const processPdfDocument = async (file: File, fileUrl: string) => {
+  const startRecording = async () => {
     try {
-      setIsProcessingPdf(true);
-      
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) {
-        throw new Error("User not authenticated");
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
 
-      const { data: document, error: docError } = await supabase
-        .from('documents')
-        .insert({
-          user_id: session.session.user.id,
-          original_name: file.name,
-          file_url: fileUrl,
-          status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (docError) throw docError;
-
-      const { error: processError } = await supabase.functions
-        .invoke('process-pdf', {
-          body: { documentId: document.id, fileUrl }
-        });
-
-      if (processError) throw processError;
-
-      let processingComplete = false;
-      let attempts = 0;
-      const maxAttempts = 30;
-      
-      while (!processingComplete && attempts < maxAttempts) {
-        const { data: updatedDoc, error: checkError } = await supabase
-          .from('documents')
-          .select('status')
-          .eq('id', document.id)
-          .single();
-        
-        if (checkError) throw checkError;
-        
-        if (updatedDoc.status === 'completed') {
-          processingComplete = true;
-        } else if (updatedDoc.status === 'error') {
-          throw new Error('Failed to process PDF');
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          attempts++;
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
         }
-      }
+      };
 
-      if (!processingComplete) {
-        throw new Error('PDF processing timed out');
-      }
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        try {
+          // Convert audio to base64
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64Audio = (reader.result as string).split(',')[1];
+            
+            const { data, error } = await supabase.functions.invoke('voice-to-text', {
+              body: { audio: base64Audio }
+            });
 
-      const { data: pages, error: pagesError } = await supabase
-        .from('document_pages')
-        .select('*')
-        .eq('document_id', document.id)
-        .order('page_number');
+            if (error) {
+              throw error;
+            }
 
-      if (pagesError) throw pagesError;
+            if (data.text) {
+              setMessage(data.text);
+              // Automatically send the transcribed message
+              onSend(data.text);
+            }
+          };
+          reader.readAsDataURL(audioBlob);
+        } catch (error) {
+          console.error('Error processing audio:', error);
+          toast.error('Failed to process audio');
+        }
 
-      const pagesContext = pages.map(page => page.image_url).join('\n');
-      const newMessage = `I've uploaded a PDF document (${file.name}) for analysis. Here are the processed pages:\n${pagesContext}`;
-      setMessage(newMessage);
-      
-      // Automatically send the message once PDF is processed
-      onSend(newMessage);
-      setMessage("");
-      
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.info("Recording started...");
     } catch (error) {
-      console.error('Error processing PDF:', error);
-      toast.error('Failed to process PDF');
-      throw error;
-    } finally {
-      setIsProcessingPdf(false);
+      console.error('Error accessing microphone:', error);
+      if ((error as Error).name === 'NotAllowedError') {
+        toast.error('Microphone permission denied. Please enable it in your browser/device settings.');
+      } else {
+        toast.error('Failed to start recording');
+      }
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      toast.info("Processing your message...");
     }
   };
 
@@ -161,9 +148,21 @@ export function ChatInput({ onSend }: ChatInputProps) {
         type="button"
         onClick={() => fileInputRef.current?.click()}
         className="p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 transition-colors"
-        disabled={isProcessingPdf}
+        disabled={isProcessingPdf || isRecording}
       >
         <PaperclipIcon className="w-5 h-5" />
+      </button>
+      <button
+        type="button"
+        onClick={isRecording ? stopRecording : startRecording}
+        className="p-2.5 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 transition-colors"
+        disabled={isProcessingPdf}
+      >
+        {isRecording ? (
+          <MicOff className="w-5 h-5 text-red-500" />
+        ) : (
+          <Mic className="w-5 h-5" />
+        )}
       </button>
       <input
         type="text"
@@ -171,12 +170,12 @@ export function ChatInput({ onSend }: ChatInputProps) {
         onChange={(e) => setMessage(e.target.value)}
         placeholder={isProcessingPdf ? "Processing PDF..." : selectedFile ? `${selectedFile.name} selected...` : "Message..."}
         className="flex-1 px-4 py-2.5 rounded-full bg-white/5 border border-white/10 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent"
-        disabled={isProcessingPdf}
+        disabled={isProcessingPdf || isRecording}
       />
       <button
         type="submit"
         className="p-2.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        disabled={isProcessingPdf || (!message.trim() && !selectedFile)}
+        disabled={isProcessingPdf || isRecording || (!message.trim() && !selectedFile)}
       >
         <Send className="w-5 h-5" />
       </button>
