@@ -124,10 +124,10 @@ export function Dashboard() {
     <div
       className={cn(
         "fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
-        isExpanded ? "h-screen" : "h-48"
+        isExpanded ? "h-screen" : "h-64" // Increased from h-48 to h-64
       )}
     >
-      <div className="p-4 h-full">
+      <div className="p-4 h-full overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium text-white">Financial Overview</h2>
           <button
@@ -164,16 +164,16 @@ export function Dashboard() {
             <div
               key={metric.label}
               className={cn(
-                "p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300",
+                "p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto", // Added h-auto
                 metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50",
                 metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50",
                 metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50",
                 metric.type === 'net' && "bg-blue-950/30 border-blue-800/50"
               )}
             >
-              <p className="text-sm font-medium text-white/60">{metric.label}</p>
+              <p className="text-sm font-medium text-white/60 mb-2">{metric.label}</p>
               <p className={cn(
-                "text-lg font-semibold mt-1",
+                "text-lg font-semibold",
                 metric.type === 'income' && "text-emerald-400",
                 metric.type === 'expense' && "text-rose-400",
                 metric.type === 'tax' && "text-amber-400",
