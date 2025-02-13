@@ -13,22 +13,17 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  // First, properly format newlines and list items
   let formattedText = text
-    .replace(/\\n/g, '\n')  // Replace \n with actual newlines
-    .replace(/(\d+\.)/g, '\n$1'); // Add newline before numbered items
+    .replace(/\\n/g, '\n')
+    .replace(/(\d+\.)/g, '\n$1');
   
-  // Split the text into segments based on whether they're bold or not
   const segments = formattedText.split(/(\*\*.*?\*\*)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
-      // Remove the ** markers and wrap in a bold span
       const boldText = segment.slice(2, -2);
       return <span key={index} className="font-semibold">{boldText}</span>;
     }
-    
-    // Handle regular text segments
     return <span key={index}>{segment}</span>;
   });
 };
@@ -43,10 +38,10 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
     >
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-2.5",
+          "max-w-[80%] px-4 py-2.5",
           sender === "user"
-            ? "bg-primary/10 text-primary rounded-tr-none"
-            : "bg-[#222222] text-white rounded-tl-none"
+            ? "bg-[#4285F4] text-white rounded-[20px] rounded-tr-[5px]"
+            : "bg-[#1E1E1E] text-white rounded-[20px] rounded-tl-[5px]"
         )}
       >
         {file && (
@@ -69,7 +64,7 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
         <p className="text-sm leading-relaxed whitespace-pre-line">
           {formatBoldText(content)}
         </p>
-        <span className="text-xs text-muted-foreground mt-1 block">{timestamp}</span>
+        <span className="text-xs text-white/70 mt-1 block">{timestamp}</span>
       </div>
     </div>
   );
