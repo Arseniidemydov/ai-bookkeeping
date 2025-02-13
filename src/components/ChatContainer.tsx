@@ -222,14 +222,14 @@ export const ChatContainer = () => {
 
   if (isLoading) {
     return (
-      <div className="h-screen bg-[#f3f3f3] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="h-screen bg-[#1A1F2C] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full relative">
+    <div className="flex-1 flex flex-col h-full relative bg-[#1A1F2C]">
       <div className="flex-1 overflow-y-auto pt-48 px-4 pb-32">
         <div className="max-w-2xl mx-auto">
           {messages.map((message) => (
@@ -237,7 +237,7 @@ export const ChatContainer = () => {
           ))}
           {chatMutation.isPending && (
             <div className="flex justify-start mb-4">
-              <div className="bg-[#222222] text-white rounded-2xl rounded-tl-none px-4 py-2.5">
+              <div className="bg-[#1E1E1E] text-white rounded-2xl rounded-tl-none px-4 py-2.5">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" />
                   <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce [animation-delay:0.2s]" />
