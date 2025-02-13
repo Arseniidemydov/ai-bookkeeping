@@ -43,13 +43,21 @@ async function createThread() {
 }
 
 async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
-  let messageContent = content;
+  let messageContent = [{
+    type: 'text',
+    text: content
+  }];
   
-  // If there's a file URL and it's an image, format it for GPT-4 Vision
+  // If there's a file URL and it's an image, add it as an image content part
   if (fileUrl) {
     const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
     if (isImage) {
-      messageContent = content + "\n\nImage for analysis: " + fileUrl;
+      messageContent.push({
+        type: 'image_url',
+        image_url: {
+          url: fileUrl
+        }
+      });
     }
   }
 
@@ -62,8 +70,7 @@ async function addMessageToThread(threadId: string, content: string, fileUrl?: s
     },
     body: JSON.stringify({
       role: 'user',
-      content: messageContent,
-      file_ids: [] // We're not using file_ids as we're passing URLs directly
+      content: messageContent
     })
   });
 
