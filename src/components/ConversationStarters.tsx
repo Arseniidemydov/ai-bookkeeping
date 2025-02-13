@@ -20,7 +20,7 @@ const starters: StarterButton[] = [
 
 export function ConversationStarters({ onSelect }: ConversationStartersProps) {
   return (
-    <div className="w-full bg-gray-900/80 backdrop-blur-lg border-t border-white/10">
+    <div className="w-full bg-black/80 backdrop-blur-lg border-t border-white/10">
       <div className="w-full flex gap-2 overflow-x-auto py-2 px-4">
         {starters.map((starter) => (
           <button

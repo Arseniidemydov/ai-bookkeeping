@@ -214,7 +214,7 @@ export function Dashboard() {
   };
 
   return (
-    <div className={cn("fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
+    <div className={cn("fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
       isExpanded ? "h-screen" : "h-64"
     )}>
       <div className="p-4 h-full overflow-y-auto py-[24px] relative flex flex-col">
