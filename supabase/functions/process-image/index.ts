@@ -22,8 +22,13 @@ serve(async (req) => {
       throw new Error('Failed to fetch image');
     }
 
-    // Initialize Tesseract worker
-    const worker = await createWorker();
+    // Initialize Tesseract worker with explicit configuration
+    const worker = await createWorker({
+      workerPath: 'https://unpkg.com/tesseract.js@v5.0.5/dist/worker.min.js',
+      corePath: 'https://unpkg.com/tesseract.js-core@v5.0.0/tesseract-core.wasm.js',
+      logger: msg => console.log(msg)
+    });
+    
     await worker.loadLanguage('eng');
     await worker.initialize('eng');
 
