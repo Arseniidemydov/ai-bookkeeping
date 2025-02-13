@@ -13,6 +13,11 @@ interface Message {
   content: string;
   sender: "user" | "other";
   timestamp: string;
+  file?: {
+    url: string;
+    type: string;
+    name: string;
+  };
 }
 
 const Index = () => {
@@ -65,6 +70,11 @@ const Index = () => {
           hour: "2-digit", 
           minute: "2-digit" 
         }),
+        file: msg.file_url ? {
+          url: msg.file_url,
+          type: msg.file_type,
+          name: msg.file_name
+        } : undefined
       }));
       setMessages(formattedMessages);
     }
@@ -85,7 +95,10 @@ const Index = () => {
           content: message.content,
           sender: message.sender,
           user_id: session.session.user.id,
-          thread_id: threadId
+          thread_id: threadId,
+          file_url: message.file?.url,
+          file_type: message.file?.type,
+          file_name: message.file?.name
         }])
         .select()
         .single();
@@ -95,9 +108,38 @@ const Index = () => {
     },
   });
 
+  // File upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        throw new Error("User not authenticated");
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('chat_files')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat_files')
+        .getPublicUrl(fileName);
+
+      return {
+        url: publicUrl,
+        type: file.type,
+        name: file.name
+      };
+    },
+  });
+
   // GPT chat mutation
   const chatMutation = useMutation({
-    mutationFn: async (message: string) => {
+    mutationFn: async ({ message, fileUrl }: { message: string, fileUrl?: string }) => {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) {
         throw new Error("User not authenticated");
@@ -107,7 +149,8 @@ const Index = () => {
         body: { 
           prompt: message,
           userId: session.session.user.id,
-          threadId: threadId
+          threadId: threadId,
+          fileUrl: fileUrl
         },
       });
 
@@ -123,7 +166,7 @@ const Index = () => {
     },
   });
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, file?: File) => {
     try {
       // Check authentication
       const { data: session } = await supabase.auth.getSession();
@@ -132,10 +175,16 @@ const Index = () => {
         return;
       }
 
+      let fileData;
+      if (file) {
+        fileData = await uploadMutation.mutateAsync(file);
+      }
+
       // Save user message
       const savedUserMessage = await saveMutation.mutateAsync({
         content,
         sender: "user",
+        file: fileData
       });
 
       // Update UI with user message
@@ -147,11 +196,15 @@ const Index = () => {
           hour: "2-digit",
           minute: "2-digit"
         }),
+        file: fileData
       };
       setMessages(prev => [...prev, userMessage]);
 
       // Get GPT response
-      const gptResponse = await chatMutation.mutateAsync(content);
+      const gptResponse = await chatMutation.mutateAsync({
+        message: content,
+        fileUrl: fileData?.url
+      });
 
       // Save GPT response
       const savedGptMessage = await saveMutation.mutateAsync({

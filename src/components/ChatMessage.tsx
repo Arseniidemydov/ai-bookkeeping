@@ -5,6 +5,11 @@ interface ChatMessageProps {
   content: string;
   sender: "user" | "other";
   timestamp: string;
+  file?: {
+    url: string;
+    type: string;
+    name: string;
+  };
 }
 
 const formatBoldText = (text: string) => {
@@ -28,7 +33,7 @@ const formatBoldText = (text: string) => {
   });
 };
 
-export function ChatMessage({ content, sender, timestamp }: ChatMessageProps) {
+export function ChatMessage({ content, sender, timestamp, file }: ChatMessageProps) {
   return (
     <div
       className={cn(
@@ -44,6 +49,23 @@ export function ChatMessage({ content, sender, timestamp }: ChatMessageProps) {
             : "bg-[#222222] text-white rounded-tl-none"
         )}
       >
+        {file && (
+          <div className="mb-2">
+            {file.type.startsWith('image/') ? (
+              <img src={file.url} alt="Uploaded" className="max-w-full rounded-lg" />
+            ) : (
+              <a 
+                href={file.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
+              >
+                <span>📎</span>
+                {file.name}
+              </a>
+            )}
+          </div>
+        )}
         <p className="text-sm leading-relaxed whitespace-pre-line">
           {formatBoldText(content)}
         </p>
