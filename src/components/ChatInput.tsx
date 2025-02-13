@@ -1,5 +1,6 @@
+
 import { useState, useRef } from "react";
-import { Send, PaperclipIcon, Mic, Stop } from "lucide-react";
+import { Send, PaperclipIcon, Mic, CirclePause } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -161,7 +162,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
         disabled={isProcessingPdf}
       >
         {isRecording ? (
-          <Stop className="w-5 h-5 text-red-500" />
+          <CirclePause className="w-5 h-5 text-red-500" />
         ) : (
           <Mic className="w-5 h-5" />
         )}
