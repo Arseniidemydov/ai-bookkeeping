@@ -142,6 +142,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
           toast.error('Failed to process PDF');
         }
       } else {
+        // For images, just set the file and let the user send it
         setSelectedFile(file);
       }
     }

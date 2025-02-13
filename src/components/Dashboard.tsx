@@ -4,6 +4,10 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { subDays, subMonths, startOfDay, endOfDay } from "date-fns";
+
+type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
 
 interface FinancialMetric {
   label: string;
@@ -13,18 +17,46 @@ interface FinancialMetric {
 
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('month');
+  const isMobile = useIsMobile();
+
+  const getDateRange = (period: TimePeriod) => {
+    const now = new Date();
+    switch (period) {
+      case 'day':
+        return { start: startOfDay(now), end: endOfDay(now) };
+      case 'week':
+        return { start: subDays(now, 7), end: now };
+      case 'month':
+        return { start: subDays(now, 30), end: now };
+      case '3months':
+        return { start: subMonths(now, 3), end: now };
+      case '6months':
+        return { start: subMonths(now, 6), end: now };
+      default:
+        return null; // No date filtering for 'all'
+    }
+  };
 
   const { data: financialData, refetch } = useQuery({
-    queryKey: ['financial-metrics'],
+    queryKey: ['financial-metrics', selectedPeriod],
     queryFn: async () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) return null;
 
-      const { data: transactions, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select('*')
         .eq('user_id', session.session.user.id);
 
+      const dateRange = getDateRange(selectedPeriod);
+      if (dateRange) {
+        query = query
+          .gte('date', dateRange.start.toISOString())
+          .lte('date', dateRange.end.toISOString());
+      }
+
+      const { data: transactions, error } = await query;
       if (error) throw error;
 
       const totalIncome = transactions
@@ -47,7 +79,6 @@ export function Dashboard() {
     },
   });
 
-  // Subscribe to changes in the transactions table
   useEffect(() => {
     const channel = supabase
       .channel('table-db-changes')
@@ -76,6 +107,19 @@ export function Dashboard() {
     }).format(value);
   };
 
+  const timePeriods: { label: string; value: TimePeriod }[] = [
+    { label: 'Day', value: 'day' },
+    { label: 'Week', value: 'week' },
+    { label: 'Month', value: 'month' },
+    { label: '3 Months', value: '3months' },
+    { label: '6 Months', value: '6months' },
+    { label: 'All Time', value: 'all' },
+  ];
+
+  const visibleMetrics = isMobile && !isExpanded
+    ? financialData?.slice(0, 2)
+    : financialData;
+
   return (
     <div
       className={cn(
@@ -97,8 +141,26 @@ export function Dashboard() {
             )}
           </button>
         </div>
+
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          {timePeriods.map(period => (
+            <button
+              key={period.value}
+              onClick={() => setSelectedPeriod(period.value)}
+              className={cn(
+                "px-3 py-1 rounded-full text-sm whitespace-nowrap transition-colors",
+                selectedPeriod === period.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-white/5 text-white/60 hover:bg-white/10"
+              )}
+            >
+              {period.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {financialData?.map((metric) => (
+          {visibleMetrics?.map((metric) => (
             <div
               key={metric.label}
               className={cn(
