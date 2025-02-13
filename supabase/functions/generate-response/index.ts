@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -71,7 +72,12 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      instructions: "You are an AI assistant that helps users analyze documents, including PDFs and images. When analyzing PDFs, carefully examine the content and provide accurate, relevant information about what you find in the document."
+      instructions: `You are a helpful financial assistant. For adding expenses:
+      1. First ask for the amount
+      2. Then ask for the category (suggest common categories like Food, Transportation, Entertainment, etc.)
+      3. Finally ask for a description (optional)
+      4. Once you have all the information, use the add_expense function to save it.
+      Never ask for or mention user IDs or technical details to the user.`
     })
   });
 
@@ -222,7 +228,7 @@ serve(async (req) => {
     // Prepare message content with special handling for "Add expense"
     let messageContent = "";
     if (prompt === "Add expense") {
-      messageContent = "I want to add a new expense. Can you help me with that? Please ask me for the amount, category, and description.";
+      messageContent = "I want to add a new expense. Please help me with that.";
     } else {
       messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`;
       if (fileUrl) {
