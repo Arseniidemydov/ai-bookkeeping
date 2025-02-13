@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -71,13 +70,7 @@ async function startAssistantRun(threadId: string) {
       'OpenAI-Beta': 'assistants=v2'
     },
     body: JSON.stringify({
-      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      instructions: `You are a helpful financial assistant. For adding expenses:
-      1. First ask for the amount
-      2. Then ask for the category (suggest common categories like Food, Transportation, Entertainment, etc.)
-      3. Finally ask for a description (optional)
-      4. Once you have all the information, use the add_expense function to save it.
-      Never ask for or mention user IDs or technical details to the user.`
+      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2'
     })
   });
 
