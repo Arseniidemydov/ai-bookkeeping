@@ -100,7 +100,28 @@ async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) 
     console.log('Processing tool call:', toolCall);
 
     try {
-      if (toolCall.function.name === 'add_income') {
+      if (toolCall.function.name === 'add_expense') {
+        const functionArgs = JSON.parse(toolCall.function.arguments);
+        console.log('Adding expense:', functionArgs);
+
+        const { error: insertError } = await supabase
+          .from('transactions')
+          .insert([{
+            user_id: userId,
+            amount: functionArgs.amount,
+            category: functionArgs.category,
+            description: functionArgs.description,
+            type: 'expense',
+            date: new Date().toISOString()
+          }]);
+
+        if (insertError) throw insertError;
+
+        toolOutputs.push({
+          tool_call_id: toolCall.id,
+          output: JSON.stringify({ success: true })
+        });
+      } else if (toolCall.function.name === 'add_income') {
         const functionArgs = JSON.parse(toolCall.function.arguments);
         console.log('Adding income:', functionArgs);
 
@@ -121,7 +142,6 @@ async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) 
           output: JSON.stringify({ success: true })
         });
       } else {
-        // For any unhandled tool calls, return a default success response
         console.log('Unhandled tool call:', toolCall.function.name);
         toolOutputs.push({
           tool_call_id: toolCall.id,
@@ -199,22 +219,12 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
-    // Parse the prompt to extract document pages if present
-    const messageLines = prompt.split('\n');
-    const documentInfo = messageLines[0];
-    const pageUrls = messageLines.slice(1);
-    
-    // Prepare message content
-    let messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\n`;
-    
-    if (pageUrls.length > 0) {
-      messageContent += `I have uploaded a PDF document for analysis. Here are the processed pages:\n`;
-      pageUrls.forEach((url: string) => {
-        messageContent += `- ${url}\n`;
-      });
-      messageContent += "\nPlease analyze these pages and provide detailed information about their contents.";
+    // Prepare message content with special handling for "Add expense"
+    let messageContent = "";
+    if (prompt === "Add expense") {
+      messageContent = "I want to add a new expense. Can you help me with that? Please ask me for the amount, category, and description.";
     } else {
-      messageContent += `Question: ${prompt}`;
+      messageContent = `Context: Here are my recent transactions: ${transactionsContext}\n\nQuestion: ${prompt}`;
       if (fileUrl) {
         messageContent += `\n\nI have attached a file for analysis: ${fileUrl}`;
       }
