@@ -1,6 +1,5 @@
-
 import { useState, useRef } from "react";
-import { Send, PaperclipIcon, Mic, MicOff } from "lucide-react";
+import { Send, PaperclipIcon, Mic, Stop } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,7 +44,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
         try {
-          // Convert audio to base64
           const reader = new FileReader();
           reader.onloadend = async () => {
             const base64Audio = (reader.result as string).split(',')[1];
@@ -59,8 +57,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
             }
 
             if (data.text) {
-              setMessage(data.text);
-              // Automatically send the transcribed message
               onSend(data.text);
             }
           };
@@ -70,7 +66,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
           toast.error('Failed to process audio');
         }
 
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -123,14 +118,12 @@ export function ChatInput({ onSend }: ChatInputProps) {
             .from('pdf_pages')
             .getPublicUrl(`original/${fileName}`);
 
-          // Process PDF file
           const { data: processedData, error: processError } = await supabase.functions.invoke('process-pdf', {
             body: { pdfUrl: publicUrl }
           });
 
           if (processError) throw processError;
 
-          // Send the processed text
           onSend(processedData.text);
         } catch (error) {
           console.error('Error handling PDF:', error);
@@ -139,7 +132,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
           setIsProcessingPdf(false);
         }
       } else {
-        // For images, just set the file and let the user send it
         setSelectedFile(file);
       }
     }
@@ -169,7 +161,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
         disabled={isProcessingPdf}
       >
         {isRecording ? (
-          <MicOff className="w-5 h-5 text-red-500" />
+          <Stop className="w-5 h-5 text-red-500" />
         ) : (
           <Mic className="w-5 h-5" />
         )}
