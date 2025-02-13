@@ -1,12 +1,12 @@
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react"; // Add useEffect import
 import { ChatInput } from "@/components/ChatInput";
 import { ConversationStarters } from "@/components/ConversationStarters";
 import { LoadingSpinner } from "./chat/LoadingSpinner";
 import { MessagesList } from "./chat/MessagesList";
 import { useChat } from "@/hooks/useChat";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client"; // Add this import
+import { supabase } from "@/integrations/supabase/client";
 
 export const ChatContainer = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -15,6 +15,11 @@ export const ChatContainer = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Add useEffect to scroll when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleSendMessage = async (content: string, file?: File) => {
     try {
