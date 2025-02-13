@@ -42,11 +42,17 @@ async function createThread() {
 }
 
 async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
-  const messageContent = [{
-    type: 'text',
-    text: content
-  }];
+  let messageContent = [];
   
+  // Add text content if provided
+  if (content.trim()) {
+    messageContent.push({
+      type: 'text',
+      text: content
+    });
+  }
+  
+  // Add image content if URL is provided
   if (fileUrl) {
     const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
     if (isImage) {
@@ -78,6 +84,8 @@ async function addMessageToThread(threadId: string, content: string, fileUrl?: s
     const errorData = await response.text();
     throw new Error(`Failed to add message: ${response.status} ${errorData}`);
   }
+
+  return await response.json();
 }
 
 async function startAssistantRun(threadId: string) {
