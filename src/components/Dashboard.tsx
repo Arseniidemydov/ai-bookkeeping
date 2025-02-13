@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, Trash2 } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -218,7 +217,7 @@ export function Dashboard() {
     <div className={cn("fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
       isExpanded ? "h-screen" : "h-64"
     )}>
-      <div className="p-4 h-full overflow-y-auto py-[24px]">
+      <div className="p-4 h-full overflow-y-auto py-[24px] relative flex flex-col">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium text-white">Financial Overview</h2>
           <button onClick={() => setIsExpanded(!isExpanded)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
@@ -243,7 +242,7 @@ export function Dashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {visibleMetrics?.map(metric => (
             <div
               key={metric.label}
@@ -271,8 +270,13 @@ export function Dashboard() {
         </div>
 
         {isExpanded && (
-          <div className="mt-4 flex justify-center">
-            <Button variant="destructive" onClick={handleLogout}>
+          <div className="mt-auto pt-4 flex justify-center">
+            <Button 
+              variant="destructive" 
+              onClick={handleLogout}
+              className="w-full max-w-[200px] flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
               Log out
             </Button>
           </div>
@@ -336,4 +340,3 @@ export function Dashboard() {
     </div>
   );
 }
-
