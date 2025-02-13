@@ -89,6 +89,7 @@ async function addMessageToThread(threadId: string, content: string, fileUrl?: s
 }
 
 async function startAssistantRun(threadId: string) {
+  console.log('Starting assistant run for thread:', threadId);
   const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
     method: 'POST',
     headers: {
@@ -98,7 +99,7 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4o', // Using gpt-4o which supports vision
+      model: 'gpt-4-1106-preview', // Updated model name to support vision
       tools: [
         {
           "type": "function",
@@ -165,7 +166,15 @@ async function getRunStatus(threadId: string, runId: string) {
       'OpenAI-Beta': 'assistants=v2'
     }
   });
-  return await response.json();
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to get run status: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+  console.log('Run status data:', JSON.stringify(data, null, 2));
+  return data;
 }
 
 async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) {
@@ -314,7 +323,8 @@ serve(async (req) => {
       }
       
       if (runStatusData.status === 'failed' || runStatusData.status === 'expired' || runStatusData.status === 'cancelled') {
-        throw new Error(`Run failed with status: ${runStatusData.status}`);
+        console.error('Run failed with details:', JSON.stringify(runStatusData, null, 2));
+        throw new Error(`Run failed with status: ${runStatusData.status}. Last error: ${runStatusData.last_error?.message || 'Unknown error'}`);
       }
       
       if (runStatusData.status === 'requires_action') {
