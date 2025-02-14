@@ -180,6 +180,35 @@ async function startAssistantRun(threadId: string) {
         {
           "type": "function",
           "function": {
+            "name": "fetch_user_transactions",
+            "description": "Retrieves all financial transactions for a specific user from the Supabase database.",
+            "parameters": {
+              "type": "object",
+              "required": ["user_id"],
+              "properties": {
+                "user_id": {
+                  "type": "string",
+                  "description": "The unique identifier of the user whose transactions should be retrieved."
+                },
+                "start_date": {
+                  "type": "string",
+                  "description": "Optional start date for filtering transactions (YYYY-MM-DD)."
+                },
+                "end_date": {
+                  "type": "string",
+                  "description": "Optional end date for filtering transactions (YYYY-MM-DD)."
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Optional category to filter transactions."
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
             "name": "add_expense",
             "description": "Add a new expense transaction",
             "parameters": {
