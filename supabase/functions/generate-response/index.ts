@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -47,6 +46,34 @@ async function getTransactionsContext(supabase: any, userId: string) {
   } catch (error) {
     console.error('Error in getTransactionsContext:', error);
     return '[]';
+  }
+}
+
+async function addIncomeTransaction(supabase: any, userId: string, amount: number, description: string, category: string, date: string) {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([{
+        user_id: userId,
+        amount: amount,
+        type: 'income',
+        description: description,
+        category: category,
+        date: date || new Date().toISOString().split('T')[0]
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding income transaction:', error);
+      throw error;
+    }
+
+    console.log('Successfully added income transaction:', data);
+    return JSON.stringify(data);
+  } catch (error) {
+    console.error('Error in addIncomeTransaction:', error);
+    throw error;
   }
 }
 
@@ -202,12 +229,25 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
     const functionArgs = JSON.parse(toolCall.function.arguments);
     
     let output;
-    if (functionName === 'fetch_user_transactions') {
-      const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
-      output = await getTransactionsContext(supabase, functionArgs.user_id);
-    } else {
-      console.warn('Unknown function called:', functionName);
-      output = JSON.stringify({ error: 'Function not implemented' });
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+
+    switch (functionName) {
+      case 'fetch_user_transactions':
+        output = await getTransactionsContext(supabase, functionArgs.user_id);
+        break;
+      case 'add_income':
+        output = await addIncomeTransaction(
+          supabase,
+          functionArgs.user_id,
+          functionArgs.amount,
+          functionArgs.description,
+          functionArgs.category,
+          functionArgs.date
+        );
+        break;
+      default:
+        console.warn('Unknown function called:', functionName);
+        output = JSON.stringify({ error: 'Function not implemented' });
     }
 
     toolOutputs.push({
@@ -271,6 +311,39 @@ async function startAssistantRun(threadId: string) {
                 "category": {
                   "type": "string",
                   "description": "Optional category to filter transactions."
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "add_income",
+            "description": "Adds a new income transaction for a user.",
+            "parameters": {
+              "type": "object",
+              "required": ["user_id", "amount", "description"],
+              "properties": {
+                "user_id": {
+                  "type": "string",
+                  "description": "The unique identifier of the user."
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "The amount of income."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description of the income transaction."
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Category of the income (e.g., 'salary', 'investment', etc.)."
+                },
+                "date": {
+                  "type": "string",
+                  "description": "Date of the transaction (YYYY-MM-DD). Defaults to current date if not provided."
                 }
               }
             }
