@@ -270,20 +270,16 @@ serve(async (req) => {
     }
 
     try {
-      // Add message to thread with proper handling of file URLs
       await addMessageToThread(currentThreadId, prompt, fileUrl);
     } catch (error) {
       if (error.message.includes("while a run") && error.message.includes("is active")) {
-        // Extract run ID from error message
         const runIdMatch = error.message.match(/run_([\w]+)/);
         if (runIdMatch && runIdMatch[1]) {
           const activeRunId = `run_${runIdMatch[1]}`;
           console.log('Detected active run:', activeRunId);
           
-          // Try to cancel the active run
           const cancelled = await cancelActiveRun(currentThreadId, activeRunId);
           if (cancelled) {
-            // If successfully cancelled, retry adding the message
             await addMessageToThread(currentThreadId, prompt, fileUrl);
           } else {
             throw new Error('Failed to cancel active run and retry message');
@@ -295,18 +291,23 @@ serve(async (req) => {
     }
 
     // Start the assistant run
+    console.log('Starting assistant run...');
     const run = await startAssistantRun(currentThreadId);
+    console.log('Run started with ID:', run.id);
     
-    // Poll for completion
+    // Poll for completion with increased timeout and better logging
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 60;
-    const checkInterval = 1000;
+    const maxAttempts = 180; // Increased to 3 minutes
+    const checkInterval = 1000; // Keep 1 second interval
+    const startTime = Date.now();
 
     while (true) {
-      console.log('Current run status:', runStatusData.status);
+      const elapsedTime = (Date.now() - startTime) / 1000;
+      console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}. Elapsed time: ${elapsedTime.toFixed(1)}s`);
       
       if (runStatusData.status === 'completed') {
+        console.log(`Run completed successfully after ${elapsedTime.toFixed(1)} seconds`);
         break;
       }
       
@@ -316,7 +317,12 @@ serve(async (req) => {
       }
       
       if (attempts >= maxAttempts) {
+        console.error(`Run timed out after ${maxAttempts} attempts (${elapsedTime.toFixed(1)} seconds)`);
         throw new Error('Assistant run timed out');
+      }
+      
+      if (runStatusData.status === 'requires_action') {
+        console.log('Run requires action:', JSON.stringify(runStatusData.required_action, null, 2));
       }
       
       // Wait before checking status again
@@ -326,6 +332,7 @@ serve(async (req) => {
     }
 
     // Get the final messages
+    console.log('Fetching assistant messages...');
     const messages = await getAssistantMessages(currentThreadId);
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
     
@@ -338,6 +345,7 @@ serve(async (req) => {
       throw new Error('No valid response content found');
     }
 
+    console.log('Successfully generated response');
     return new Response(JSON.stringify({ 
       generatedText,
       threadId: currentThreadId
