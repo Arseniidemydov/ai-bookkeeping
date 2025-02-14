@@ -24,14 +24,29 @@ function handleCORS(req: Request) {
 }
 
 async function getTransactionsContext(supabase: any, userId: string) {
-  const { data: transactions, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: false });
+  if (!userId) {
+    console.log('No user ID provided for transactions context');
+    return '[]';
+  }
 
-  if (error) throw error;
-  return transactions ? JSON.stringify(transactions) : '[]';
+  try {
+    const { data: transactions, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching transactions:', error);
+      throw error;
+    }
+
+    console.log('Successfully fetched transactions for user:', userId, 'count:', transactions?.length);
+    return transactions ? JSON.stringify(transactions) : '[]';
+  } catch (error) {
+    console.error('Error in getTransactionsContext:', error);
+    return '[]';
+  }
 }
 
 async function createThread() {
@@ -299,6 +314,15 @@ serve(async (req) => {
     const { prompt, userId, threadId, fileUrl } = await req.json();
     console.log('Received request:', { prompt, userId, threadId, fileUrl });
     
+    if (!userId) {
+      return new Response(JSON.stringify({ 
+        error: "User ID is required to process this request" 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
     const transactionsContext = await getTransactionsContext(supabase, userId);
 
@@ -308,8 +332,11 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
+    // Add transaction context to the user's message
+    const messageWithContext = `User's transactions context: ${transactionsContext}\n\nUser's message: ${prompt}`;
+    
     try {
-      await addMessageToThread(currentThreadId, prompt, fileUrl);
+      await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
     } catch (error) {
       if (error.message.includes("while a run") && error.message.includes("is active")) {
         const runIdMatch = error.message.match(/run_([\w]+)/);
@@ -319,7 +346,7 @@ serve(async (req) => {
           
           const cancelled = await cancelActiveRun(currentThreadId, activeRunId);
           if (cancelled) {
-            await addMessageToThread(currentThreadId, prompt, fileUrl);
+            await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
           } else {
             throw new Error('Failed to cancel active run and retry message');
           }
