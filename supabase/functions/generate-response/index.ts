@@ -49,7 +49,7 @@ async function getTransactionsContext(supabase: any, userId: string) {
   }
 }
 
-async function addIncomeTransaction(supabase: any, userId: string, amount: number, description: string, category: string, date: string) {
+async function addIncomeTransaction(supabase: any, userId: string, amount: number, source: string) {
   try {
     const { data, error } = await supabase
       .from('transactions')
@@ -57,9 +57,8 @@ async function addIncomeTransaction(supabase: any, userId: string, amount: numbe
         user_id: userId,
         amount: amount,
         type: 'income',
-        description: description,
-        category: category,
-        date: date || new Date().toISOString().split('T')[0]
+        description: source,
+        category: source
       }])
       .select()
       .single();
@@ -240,9 +239,7 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
           supabase,
           functionArgs.user_id,
           functionArgs.amount,
-          functionArgs.description,
-          functionArgs.category,
-          functionArgs.date
+          functionArgs.source
         );
         break;
       default:
@@ -320,30 +317,27 @@ async function startAssistantRun(threadId: string) {
           "type": "function",
           "function": {
             "name": "add_income",
-            "description": "Adds a new income transaction for a user.",
+            "description": "Add an income to the user's account",
+            "strict": false,
             "parameters": {
               "type": "object",
-              "required": ["user_id", "amount", "description"],
+              "required": [
+                "user_id",
+                "amount",
+                "source"
+              ],
               "properties": {
                 "user_id": {
                   "type": "string",
-                  "description": "The unique identifier of the user."
+                  "description": "Unique identifier for the user."
                 },
                 "amount": {
                   "type": "number",
-                  "description": "The amount of income."
+                  "description": "Amount of the income."
                 },
-                "description": {
+                "source": {
                   "type": "string",
-                  "description": "Description of the income transaction."
-                },
-                "category": {
-                  "type": "string",
-                  "description": "Category of the income (e.g., 'salary', 'investment', etc.)."
-                },
-                "date": {
-                  "type": "string",
-                  "description": "Date of the transaction (YYYY-MM-DD). Defaults to current date if not provided."
+                  "description": "Source of the income (e.g., salary, freelance, etc.)."
                 }
               }
             }
