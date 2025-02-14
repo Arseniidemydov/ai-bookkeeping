@@ -1,1 +1,9 @@
+
 project_id = "pqfawxyxvjocxfhsjdec"
+
+[api]
+enabled = true
+url = "https://pqfawxyxvjocxfhsjdec.supabase.co/functions/v1"
+
+[functions.fetch-user-transactions]
+verify_jwt = true
