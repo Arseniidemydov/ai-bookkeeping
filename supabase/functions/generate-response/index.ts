@@ -302,6 +302,12 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
             functionArgs.category
           );
           break;
+        case 'get_pdf_images':
+          if (!functionArgs.document_id) {
+            throw new Error('Document ID is required for fetching PDF images');
+          }
+          output = await getPDFImages(supabase, functionArgs.document_id);
+          break;
         default:
           console.error('Unknown function called:', functionName);
           throw new Error(`Function ${functionName} not implemented`);
@@ -434,6 +440,23 @@ async function startAssistantRun(threadId: string) {
               }
             }
           }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "get_pdf_images",
+            "description": "Retrieve the images generated from a PDF document",
+            "parameters": {
+              "type": "object",
+              "required": ["document_id"],
+              "properties": {
+                "document_id": {
+                  "type": "string",
+                  "description": "The unique identifier of the PDF document"
+                }
+              }
+            }
+          }
         }
       ]
     })
@@ -461,6 +484,31 @@ async function getAssistantMessages(threadId: string) {
   }
 
   return await response.json();
+}
+
+async function getPDFImages(supabase: any, documentId: string) {
+  if (!documentId) {
+    throw new Error('Document ID is required for fetching PDF images');
+  }
+
+  try {
+    const { data: pages, error } = await supabase
+      .from('document_pages')
+      .select('*')
+      .eq('document_id', documentId)
+      .order('page_number');
+
+    if (error) {
+      console.error('Error fetching PDF pages:', error);
+      throw error;
+    }
+
+    console.log('Successfully fetched PDF pages:', pages);
+    return JSON.stringify(pages);
+  } catch (error) {
+    console.error('Error in getPDFImages:', error);
+    throw error;
+  }
 }
 
 serve(async (req) => {
