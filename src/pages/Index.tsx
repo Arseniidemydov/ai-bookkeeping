@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
-  const [text, setText] = useState("Your AI Bookkeeper");
+  const [text, setText] = useState("");
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const texts = [
     "Your AI Bookkeeper",
@@ -26,9 +26,13 @@ const Index = () => {
     let currentText = texts[currentTextIndex];
     let currentChar = 0;
 
+    // Set initial character immediately
+    setText(currentText[0] || "");
+    currentChar = 1;
+
     const typingInterval = setInterval(() => {
       if (currentChar < currentText.length) {
-        setText((prev) => prev + currentText[currentChar]);
+        setText(text => text + currentText[currentChar]);
         currentChar++;
       } else {
         clearInterval(typingInterval);
