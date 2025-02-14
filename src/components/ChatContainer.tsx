@@ -1,5 +1,5 @@
 
-import { useRef, useEffect } from "react"; // Add useEffect import
+import { useRef } from "react";
 import { ChatInput } from "@/components/ChatInput";
 import { ConversationStarters } from "@/components/ConversationStarters";
 import { LoadingSpinner } from "./chat/LoadingSpinner";
@@ -11,15 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 export const ChatContainer = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, setMessages, isLoading, chatMutation, saveMutation, uploadMutation } = useChat();
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Add useEffect to scroll when messages change
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   const handleSendMessage = async (content: string, file?: File) => {
     try {
@@ -52,6 +43,9 @@ export const ChatContainer = () => {
       };
       setMessages(prev => [...prev, userMessage]);
 
+      // Scroll to bottom when sending a new message
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+
       const gptResponse = await chatMutation.mutateAsync({
         message: content,
         fileUrl: fileData?.url
@@ -72,6 +66,9 @@ export const ChatContainer = () => {
         }),
       };
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Scroll to bottom after receiving response
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (error) {
       console.error("Error in chat flow:", error);
       toast.error("Failed to process message. Please try again.");
