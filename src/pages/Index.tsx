@@ -22,9 +22,9 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    setText("");
+    setText(texts[currentTextIndex][0] || ""); // Start with the first character
     let currentText = texts[currentTextIndex];
-    let currentChar = 0;
+    let currentChar = 1; // Start from second character since we already set the first one
 
     const typingInterval = setInterval(() => {
       if (currentChar < currentText.length) {
@@ -44,7 +44,7 @@ const Index = () => {
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
       <div className="text-center space-y-8 max-w-2xl mx-auto px-6">
         <h1 className="text-2xl md:text-3xl font-light text-white min-h-[80px] tracking-wide">
-          {text}
+          {text || "\u00A0"}
         </h1>
         <Button 
           onClick={() => navigate('/auth')}
