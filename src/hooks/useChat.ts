@@ -17,7 +17,7 @@ interface Message {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
+const RETRY_DELAY = 2000; // Increased to 2 seconds
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -56,10 +56,14 @@ export function useChat() {
         throw new Error("User not authenticated");
       }
 
+      let lastError;
       let retries = 0;
+
       while (retries < MAX_RETRIES) {
         try {
-          const { data, error } = await supabase.functions.invoke('generate-response', {
+          console.log(`Attempt ${retries + 1} to send message...`);
+          
+          const response = await supabase.functions.invoke('generate-response', {
             body: { 
               prompt: message,
               userId: session.session.user.id,
@@ -68,29 +72,32 @@ export function useChat() {
             },
           });
 
-          if (error) {
-            console.error('Error in generate-response:', error);
-            throw error;
+          if (response.error) {
+            console.error('Error from generate-response:', response.error);
+            throw response.error;
           }
 
-          if (data.threadId && !threadId) {
-            setThreadId(data.threadId);
+          if (response.data.threadId && !threadId) {
+            setThreadId(response.data.threadId);
           }
 
-          return data.generatedText;
+          return response.data.generatedText;
         } catch (error) {
+          lastError = error;
           retries++;
           console.error(`Attempt ${retries} failed:`, error);
           
           if (retries === MAX_RETRIES) {
             toast.error("Failed to get response. Please try again.");
-            throw new Error("Failed to generate response after multiple attempts");
+            throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
-          // Wait before retrying
-          await delay(RETRY_DELAY * retries); // Exponential backoff
+          // Wait before retrying with exponential backoff
+          await delay(RETRY_DELAY * Math.pow(2, retries - 1));
         }
       }
+
+      throw lastError;
     },
   });
 
@@ -116,7 +123,10 @@ export function useChat() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving message:', error);
+        throw error;
+      }
       return data;
     },
   });

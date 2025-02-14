@@ -3,9 +3,40 @@ project_id = "pqfawxyxvjocxfhsjdec"
 
 [api]
 enabled = true
+# Port to use for the API URL
+port = 54321
+# Schemas to expose in your API
+schemas = ["public"]
+# Extra schemas to add to the PATH
+extra_search_path = ["public", "extensions"]
+# Max rows to return from a View
+max_rows = 1000
 
-[functions.fetch-user-transactions]
-verify_jwt = true
+[db]
+# Port to use for the local database URL
+port = 54322
+shadow_port = 54320
+major_version = 15
 
-[functions.generate-response]
-verify_jwt = true
+[database]
+physical_backup = false
+
+[studio]
+enabled = true
+api_url = "http://127.0.0.1"
+port = 54323
+
+# Enable Edge Functions
+[functions]
+  [functions.generate-response]
+  verify_jwt = false # Set to false to allow requests without authentication
+  import_map = "./import_map.json"
+
+  [functions.process-image]
+  verify_jwt = false
+
+  [functions.process-pdf]
+  verify_jwt = false
+
+  [functions.voice-to-text]
+  verify_jwt = false
