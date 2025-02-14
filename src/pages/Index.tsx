@@ -22,17 +22,13 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    setText("");
     let currentText = texts[currentTextIndex];
     let currentChar = 0;
-
-    // Set initial character immediately
-    setText(currentText[0] || "");
-    currentChar = 1;
+    setText("");
 
     const typingInterval = setInterval(() => {
-      if (currentChar < currentText.length) {
-        setText(text => text + currentText[currentChar]);
+      if (currentChar <= currentText.length) {
+        setText(currentText.slice(0, currentChar));
         currentChar++;
       } else {
         clearInterval(typingInterval);
