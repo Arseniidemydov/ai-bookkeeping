@@ -66,8 +66,8 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 bg-gray-800 p-6 rounded-lg shadow-md border border-white/10">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8 bg-gray-900/50 p-6 rounded-lg shadow-md border border-white/10 backdrop-blur-sm">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white">{isSignUp ? 'Create Account' : 'Sign In'}</h2>
           <p className="text-gray-400 mt-2">
@@ -90,7 +90,7 @@ const Auth = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="bg-gray-700 border-gray-600 text-white"
+              className="bg-gray-800/50 border-gray-700 text-white"
               placeholder="Enter your email"
             />
           </div>
@@ -103,7 +103,7 @@ const Auth = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="bg-gray-700 border-gray-600 text-white"
+              className="bg-gray-800/50 border-gray-700 text-white"
               placeholder="Enter your password"
             />
           </div>
@@ -119,7 +119,7 @@ const Auth = () => {
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     required
-                    className="bg-gray-700 border-gray-600 text-white"
+                    className="bg-gray-800/50 border-gray-700 text-white"
                     placeholder="First name"
                   />
                 </div>
@@ -131,7 +131,7 @@ const Auth = () => {
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     required
-                    className="bg-gray-700 border-gray-600 text-white"
+                    className="bg-gray-800/50 border-gray-700 text-white"
                     placeholder="Last name"
                   />
                 </div>
@@ -145,7 +145,7 @@ const Auth = () => {
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   required
-                  className="bg-gray-700 border-gray-600 text-white"
+                  className="bg-gray-800/50 border-gray-700 text-white"
                   placeholder="Enter your business name"
                 />
               </div>
@@ -158,7 +158,7 @@ const Auth = () => {
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value)}
                   required
-                  className="bg-gray-700 border-gray-600 text-white"
+                  className="bg-gray-800/50 border-gray-700 text-white"
                   placeholder="Enter your industry"
                 />
               </div>
@@ -170,7 +170,7 @@ const Auth = () => {
                   value={businessDescription}
                   onChange={(e) => setBusinessDescription(e.target.value)}
                   required
-                  className="bg-gray-700 border-gray-600 text-white"
+                  className="bg-gray-800/50 border-gray-700 text-white"
                   placeholder="Describe your business"
                   rows={4}
                 />
@@ -180,7 +180,7 @@ const Auth = () => {
 
           <Button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white px-8 py-6 text-xl rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
             disabled={isLoading}
           >
             {isLoading ? (
