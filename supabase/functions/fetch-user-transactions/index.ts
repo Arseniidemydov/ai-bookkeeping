@@ -34,12 +34,15 @@ serve(async (req) => {
     // Apply optional filters
     if (start_date) {
       query = query.gte('date', start_date);
+      console.log('Applied start_date filter:', start_date);
     }
     if (end_date) {
       query = query.lte('date', end_date);
+      console.log('Applied end_date filter:', end_date);
     }
     if (category) {
       query = query.eq('category', category);
+      console.log('Applied category filter:', category);
     }
 
     const { data: transactions, error } = await query;
@@ -50,6 +53,7 @@ serve(async (req) => {
     }
 
     console.log('Successfully fetched transactions:', transactions?.length);
+    console.log('Sample of transactions data:', transactions?.slice(0, 2));
 
     return new Response(JSON.stringify({ transactions }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
