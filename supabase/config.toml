@@ -27,7 +27,6 @@ port = 54323
 [functions]
   [functions.generate-response]
   verify_jwt = false # Set to false to allow requests without authentication
-  import_map = "./import_map.json"
 
   [functions.process-image]
   verify_jwt = false
