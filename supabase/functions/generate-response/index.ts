@@ -364,8 +364,8 @@ serve(async (req) => {
     // Updated polling configuration
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 100; // Increased to 100 attempts (50 seconds total with 500ms interval)
-    const checkInterval = 500; // Keep 500ms interval
+    const maxAttempts = 100;
+    const checkInterval = 500;
     const startTime = Date.now();
 
     while (true) {
@@ -389,17 +389,14 @@ serve(async (req) => {
       
       if (runStatusData.status === 'requires_action') {
         console.log('Run requires action:', JSON.stringify(runStatusData.required_action, null, 2));
-        // Handle required actions here if needed
-        break; // Exit the loop when action is required
+        break;
       }
       
-      // Wait before checking status again
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
     }
 
-    // Get the final messages
     console.log('Fetching assistant messages...');
     const messages = await getAssistantMessages(currentThreadId);
     const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
