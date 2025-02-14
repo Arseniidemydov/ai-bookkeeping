@@ -50,7 +50,12 @@ async function getTransactionsContext(supabase: any, userId: string) {
 }
 
 async function addIncomeTransaction(supabase: any, userId: string, amount: number, source: string) {
+  if (!userId) {
+    throw new Error('User ID is required for adding income transaction');
+  }
+
   try {
+    const date = new Date().toISOString();
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -58,7 +63,8 @@ async function addIncomeTransaction(supabase: any, userId: string, amount: numbe
         amount: amount,
         type: 'income',
         description: source,
-        category: source
+        category: source,
+        date: date
       }])
       .select()
       .single();
@@ -77,7 +83,12 @@ async function addIncomeTransaction(supabase: any, userId: string, amount: numbe
 }
 
 async function addExpenseTransaction(supabase: any, userId: string, amount: number, category: string) {
+  if (!userId) {
+    throw new Error('User ID is required for adding expense transaction');
+  }
+
   try {
+    const date = new Date().toISOString();
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -85,7 +96,8 @@ async function addExpenseTransaction(supabase: any, userId: string, amount: numb
         amount: -Math.abs(amount), // Make sure expense amount is negative
         type: 'expense',
         description: category,
-        category: category
+        category: category,
+        date: date
       }])
       .select()
       .single();
@@ -259,36 +271,50 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
 
     console.log('Processing function call:', functionName, 'with args:', functionArgs);
 
-    switch (functionName) {
-      case 'fetch_user_transactions':
-        output = await getTransactionsContext(supabase, functionArgs.user_id);
-        break;
-      case 'add_income':
-        output = await addIncomeTransaction(
-          supabase,
-          functionArgs.user_id,
-          functionArgs.amount,
-          functionArgs.source
-        );
-        break;
-      case 'add_expense':
-        console.log('Handling add_expense with args:', functionArgs);
-        output = await addExpenseTransaction(
-          supabase,
-          functionArgs.user_id,
-          functionArgs.amount,
-          functionArgs.category
-        );
-        break;
-      default:
-        console.error('Unknown function called:', functionName);
-        output = JSON.stringify({ error: `Function ${functionName} not implemented` });
-    }
+    try {
+      switch (functionName) {
+        case 'fetch_user_transactions':
+          if (!functionArgs.user_id) {
+            throw new Error('User ID is required for fetching transactions');
+          }
+          output = await getTransactionsContext(supabase, functionArgs.user_id);
+          break;
+        case 'add_income':
+          if (!functionArgs.user_id) {
+            throw new Error('User ID is required for adding income');
+          }
+          output = await addIncomeTransaction(
+            supabase,
+            functionArgs.user_id,
+            functionArgs.amount,
+            functionArgs.source
+          );
+          break;
+        case 'add_expense':
+          if (!functionArgs.user_id) {
+            throw new Error('User ID is required for adding expense');
+          }
+          console.log('Handling add_expense with args:', functionArgs);
+          output = await addExpenseTransaction(
+            supabase,
+            functionArgs.user_id,
+            functionArgs.amount,
+            functionArgs.category
+          );
+          break;
+        default:
+          console.error('Unknown function called:', functionName);
+          throw new Error(`Function ${functionName} not implemented`);
+      }
 
-    toolOutputs.push({
-      tool_call_id: toolCall.id,
-      output: output
-    });
+      toolOutputs.push({
+        tool_call_id: toolCall.id,
+        output: output
+      });
+    } catch (error) {
+      console.error(`Error processing ${functionName}:`, error);
+      throw error;
+    }
   }
 
   const submitResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/submit_tool_outputs`, {
