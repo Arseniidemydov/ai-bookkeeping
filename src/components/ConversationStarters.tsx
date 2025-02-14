@@ -13,7 +13,6 @@ interface ConversationStartersProps {
 const starters: StarterButton[] = [
   { icon: <Plus className="w-4 h-4" />, text: "Add expense" },
   { icon: <Plus className="w-4 h-4" />, text: "Add income" },
-  { icon: <FileText className="w-4 h-4" />, text: "Invoice creation" },
   { icon: <FileText className="w-4 h-4" />, text: "Report generation" },
   { icon: <BarChart2 className="w-4 h-4" />, text: "Tax insights" },
 ];
