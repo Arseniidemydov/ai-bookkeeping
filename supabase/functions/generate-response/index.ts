@@ -295,10 +295,10 @@ serve(async (req) => {
     const run = await startAssistantRun(currentThreadId);
     console.log('Run started with ID:', run.id);
     
-    // Poll for completion with increased timeout and better logging
+    // Poll for completion with 50 second timeout and better logging
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 180; // Increased to 3 minutes
+    const maxAttempts = 50; // Reduced to 50 seconds (1 check per second)
     const checkInterval = 1000; // Keep 1 second interval
     const startTime = Date.now();
 
