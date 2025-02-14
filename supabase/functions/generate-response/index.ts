@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -258,6 +257,8 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
     let output;
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
+    console.log('Processing function call:', functionName, 'with args:', functionArgs);
+
     switch (functionName) {
       case 'fetch_user_transactions':
         output = await getTransactionsContext(supabase, functionArgs.user_id);
@@ -271,6 +272,7 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
         );
         break;
       case 'add_expense':
+        console.log('Handling add_expense with args:', functionArgs);
         output = await addExpenseTransaction(
           supabase,
           functionArgs.user_id,
@@ -279,8 +281,8 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
         );
         break;
       default:
-        console.warn('Unknown function called:', functionName);
-        output = JSON.stringify({ error: 'Function not implemented' });
+        console.error('Unknown function called:', functionName);
+        output = JSON.stringify({ error: `Function ${functionName} not implemented` });
     }
 
     toolOutputs.push({
