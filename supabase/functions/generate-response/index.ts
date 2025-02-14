@@ -30,11 +30,12 @@ async function getTransactionsContext(supabase: any, userId: string) {
   }
 
   try {
-    const { data: transactions, error } = await supabase
+    let query = supabase
       .from('transactions')
       .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: false });
+      .eq('user_id', userId);
+
+    const { data: transactions, error } = await query.order('date', { ascending: false });
 
     if (error) {
       console.error('Error fetching transactions:', error);
@@ -369,11 +370,13 @@ async function startAssistantRun(threadId: string) {
                 },
                 "start_date": {
                   "type": "string",
-                  "description": "Optional start date for filtering transactions (YYYY-MM-DD)."
+                  "format": "date-time",
+                  "description": "Optional start date for filtering transactions (ISO 8601 format)."
                 },
                 "end_date": {
                   "type": "string",
-                  "description": "Optional end date for filtering transactions (YYYY-MM-DD)."
+                  "format": "date-time",
+                  "description": "Optional end date for filtering transactions (ISO 8601 format)."
                 },
                 "category": {
                   "type": "string",
