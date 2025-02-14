@@ -76,6 +76,33 @@ async function addIncomeTransaction(supabase: any, userId: string, amount: numbe
   }
 }
 
+async function addExpenseTransaction(supabase: any, userId: string, amount: number, category: string) {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([{
+        user_id: userId,
+        amount: -Math.abs(amount), // Make sure expense amount is negative
+        type: 'expense',
+        description: category,
+        category: category
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding expense transaction:', error);
+      throw error;
+    }
+
+    console.log('Successfully added expense transaction:', data);
+    return JSON.stringify(data);
+  } catch (error) {
+    console.error('Error in addExpenseTransaction:', error);
+    throw error;
+  }
+}
+
 async function createThread() {
   const response = await fetch('https://api.openai.com/v1/threads', {
     method: 'POST',
@@ -242,6 +269,14 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
           functionArgs.source
         );
         break;
+      case 'add_expense':
+        output = await addExpenseTransaction(
+          supabase,
+          functionArgs.user_id,
+          functionArgs.amount,
+          functionArgs.category
+        );
+        break;
       default:
         console.warn('Unknown function called:', functionName);
         output = JSON.stringify({ error: 'Function not implemented' });
@@ -338,6 +373,35 @@ async function startAssistantRun(threadId: string) {
                 "source": {
                   "type": "string",
                   "description": "Source of the income (e.g., salary, freelance, etc.)."
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "add_expense",
+            "description": "Add an expense to the user's account",
+            "parameters": {
+              "type": "object",
+              "required": [
+                "user_id",
+                "amount",
+                "category"
+              ],
+              "properties": {
+                "user_id": {
+                  "type": "string",
+                  "description": "Unique identifier for the user."
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "Amount of the expense (positive number)."
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Category of the expense (e.g., food, transport, etc.)."
                 }
               }
             }
