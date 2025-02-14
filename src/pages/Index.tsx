@@ -22,9 +22,9 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    setText(texts[currentTextIndex][0] || ""); // Start with the first character
+    setText("");
     let currentText = texts[currentTextIndex];
-    let currentChar = 1; // Start from second character since we already set the first one
+    let currentChar = 0;
 
     const typingInterval = setInterval(() => {
       if (currentChar < currentText.length) {
@@ -41,14 +41,14 @@ const Index = () => {
   }, [currentTextIndex, texts]);
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
       <div className="text-center space-y-8 max-w-2xl mx-auto px-6">
         <h1 className="text-2xl md:text-3xl font-light text-white min-h-[80px] tracking-wide">
           {text || "\u00A0"}
         </h1>
         <Button 
           onClick={() => navigate('/auth')}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-6 text-xl rounded-md border border-white/10"
+          className="bg-gradient-to-r from-indigo-500 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800 text-white px-8 py-6 text-xl rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-indigo-400/20"
         >
           Start now
         </Button>
