@@ -132,7 +132,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
         } finally {
           setIsProcessingPdf(false);
         }
-      } else {
+      } else if (file.type.startsWith('image/')) {
+        // If it's an image, just set it for direct upload without PDF processing
         setSelectedFile(file);
       }
     }
