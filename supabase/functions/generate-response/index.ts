@@ -30,24 +30,20 @@ async function getTransactionsContext(supabase: any, userId: string) {
   }
 
   try {
-    let query = supabase
+    const { data: transactions, error } = await supabase
       .from('transactions')
       .select('*')
-      .eq('user_id', userId);
-
-    const { data: transactions, error } = await query;
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching transactions:', error);
       throw error;
     }
 
-    const sortedTransactions = transactions?.sort((a: any, b: any) => {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    }) || [];
-
-    console.log('Successfully fetched transactions for user:', userId, 'count:', sortedTransactions.length);
-    return JSON.stringify(sortedTransactions);
+    console.log('Successfully fetched transactions for user:', userId, 'count:', transactions?.length);
+    return JSON.stringify(transactions || []);
   } catch (error) {
     console.error('Error in getTransactionsContext:', error);
     return '[]';
@@ -357,7 +353,7 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4o-mini',
+      model: 'gpt-4-turbo-preview', // Updated to latest model
       tools: [
         {
           "type": "function",
@@ -538,72 +534,50 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
     const transactionsContext = await getTransactionsContext(supabase, userId);
 
-    // Use existing thread or create new one
     let currentThreadId = threadId;
     if (!currentThreadId) {
       currentThreadId = await createThread();
     }
 
-    // Add transaction context to the user's message
     const messageWithContext = `User's transactions context: ${transactionsContext}\n\nUser's message: ${prompt}`;
-    
-    try {
-      await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
-    } catch (error) {
-      if (error.message.includes("while a run") && error.message.includes("is active")) {
-        const runIdMatch = error.message.match(/run_([\w]+)/);
-        if (runIdMatch && runIdMatch[1]) {
-          const activeRunId = `run_${runIdMatch[1]}`;
-          console.log('Detected active run:', activeRunId);
-          
-          const cancelled = await cancelActiveRun(currentThreadId, activeRunId);
-          if (cancelled) {
-            await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
-          } else {
-            throw new Error('Failed to cancel active run and retry message');
-          }
-        }
-      } else {
-        throw error;
-      }
-    }
+    await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
 
-    // Start the assistant run
     console.log('Starting assistant run...');
     const run = await startAssistantRun(currentThreadId);
     console.log('Run started with ID:', run.id);
     
-    // Wait for run completion with improved status handling
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 150; // Increased max attempts
-    const checkInterval = 1000; // Increased interval to 1 second
+    const maxAttempts = 30; // Reduced max attempts
+    const checkInterval = 2000; // Increased interval to 2 seconds
     const startTime = Date.now();
 
-    while (true) {
-      const elapsedTime = (Date.now() - startTime) / 1000;
-      console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}. Elapsed time: ${elapsedTime.toFixed(1)}s`);
+    while (attempts < maxAttempts) {
+      console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
       
       if (runStatusData.status === 'completed') {
-        console.log(`Run completed successfully after ${elapsedTime.toFixed(1)} seconds`);
-        
-        // Add delay after completion before fetching messages
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        break;
+        const messages = await getAssistantMessages(currentThreadId);
+        const assistantMessage = messages.data.find((msg: any) => 
+          msg.role === 'assistant' && msg.content && msg.content.length > 0
+        );
+
+        if (!assistantMessage?.content[0]?.text?.value) {
+          throw new Error('No valid response content found');
+        }
+
+        return new Response(JSON.stringify({ 
+          generatedText: assistantMessage.content[0].text.value,
+          threadId: currentThreadId
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
       
-      if (runStatusData.status === 'failed' || runStatusData.status === 'expired' || runStatusData.status === 'cancelled') {
-        console.error('Run failed with details:', JSON.stringify(runStatusData, null, 2));
-        throw new Error(`Run failed with status: ${runStatusData.status}. Last error: ${runStatusData.last_error?.message || 'Unknown error'}`);
-      }
-      
-      if (attempts >= maxAttempts) {
-        console.error(`Run timed out after ${maxAttempts} attempts (${elapsedTime.toFixed(1)} seconds)`);
-        throw new Error('Assistant run timed out');
+      if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
+        throw new Error(`Run failed with status: ${runStatusData.status}`);
       }
       
       if (runStatusData.status === 'requires_action') {
-        console.log('Run requires action:', JSON.stringify(runStatusData.required_action, null, 2));
         await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action);
       }
       
@@ -612,43 +586,12 @@ serve(async (req) => {
       attempts++;
     }
 
-    console.log('Fetching assistant messages...');
-    const messages = await getAssistantMessages(currentThreadId);
-    console.log('Retrieved messages:', JSON.stringify(messages.data, null, 2));
-    
-    const assistantMessage = messages.data.find((msg: any) => 
-      msg.role === 'assistant' && msg.content && msg.content.length > 0
-    );
-    
-    if (!assistantMessage) {
-      console.error('No valid assistant message found in response. Messages:', JSON.stringify(messages.data, null, 2));
-      throw new Error('No assistant message found in response');
-    }
-
-    const generatedText = assistantMessage.content[0]?.text?.value;
-    if (!generatedText) {
-      console.error('No text content found in message:', JSON.stringify(assistantMessage, null, 2));
-      throw new Error('No valid response content found');
-    }
-
-    console.log('Successfully generated response');
-    return new Response(JSON.stringify({ 
-      generatedText,
-      threadId: currentThreadId
-    }), {
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json'
-      },
-    });
+    throw new Error('Assistant run timed out');
   } catch (error) {
     console.error('Error in generate-response function:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'application/json'
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
