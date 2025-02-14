@@ -35,15 +35,19 @@ async function getTransactionsContext(supabase: any, userId: string) {
       .select('*')
       .eq('user_id', userId);
 
-    const { data: transactions, error } = await query.order('date', { ascending: false });
+    const { data: transactions, error } = await query;
 
     if (error) {
       console.error('Error fetching transactions:', error);
       throw error;
     }
 
-    console.log('Successfully fetched transactions for user:', userId, 'count:', transactions?.length);
-    return transactions ? JSON.stringify(transactions) : '[]';
+    const sortedTransactions = transactions?.sort((a: any, b: any) => {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }) || [];
+
+    console.log('Successfully fetched transactions for user:', userId, 'count:', sortedTransactions.length);
+    return JSON.stringify(sortedTransactions);
   } catch (error) {
     console.error('Error in getTransactionsContext:', error);
     return '[]';
