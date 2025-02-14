@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -190,6 +191,49 @@ async function getRunStatus(threadId: string, runId: string) {
   return data;
 }
 
+async function handleRequiredAction(threadId: string, runId: string, requiredAction: any) {
+  console.log('Handling required action:', JSON.stringify(requiredAction, null, 2));
+  
+  const toolCalls = requiredAction.submit_tool_outputs.tool_calls;
+  const toolOutputs = [];
+
+  for (const toolCall of toolCalls) {
+    const functionName = toolCall.function.name;
+    const functionArgs = JSON.parse(toolCall.function.arguments);
+    
+    let output;
+    if (functionName === 'fetch_user_transactions') {
+      const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+      output = await getTransactionsContext(supabase, functionArgs.user_id);
+    } else {
+      console.warn('Unknown function called:', functionName);
+      output = JSON.stringify({ error: 'Function not implemented' });
+    }
+
+    toolOutputs.push({
+      tool_call_id: toolCall.id,
+      output: output
+    });
+  }
+
+  const submitResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/submit_tool_outputs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'assistants=v2'
+    },
+    body: JSON.stringify({ tool_outputs: toolOutputs })
+  });
+
+  if (!submitResponse.ok) {
+    const errorData = await submitResponse.text();
+    throw new Error(`Failed to submit tool outputs: ${submitResponse.status} ${errorData}`);
+  }
+
+  return await submitResponse.json();
+}
+
 async function startAssistantRun(threadId: string) {
   console.log('Starting assistant run for thread:', threadId);
   const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
@@ -229,52 +273,6 @@ async function startAssistantRun(threadId: string) {
                   "description": "Optional category to filter transactions."
                 }
               }
-            }
-          }
-        },
-        {
-          "type": "function",
-          "function": {
-            "name": "add_expense",
-            "description": "Add a new expense transaction",
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "amount": {
-                  "type": "number",
-                  "description": "The amount of the expense"
-                },
-                "category": {
-                  "type": "string",
-                  "description": "The category of the expense"
-                },
-                "description": {
-                  "type": "string",
-                  "description": "Description of the expense"
-                }
-              },
-              "required": ["amount", "category"]
-            }
-          }
-        },
-        {
-          "type": "function",
-          "function": {
-            "name": "add_income",
-            "description": "Add a new income transaction",
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "amount": {
-                  "type": "number",
-                  "description": "The amount of the income"
-                },
-                "source": {
-                  "type": "string",
-                  "description": "The source of the income"
-                }
-              },
-              "required": ["amount", "source"]
             }
           }
         }
@@ -392,7 +390,7 @@ serve(async (req) => {
       
       if (runStatusData.status === 'requires_action') {
         console.log('Run requires action:', JSON.stringify(runStatusData.required_action, null, 2));
-        throw new Error('Assistant requires action - not implemented');
+        await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action);
       }
       
       await new Promise(resolve => setTimeout(resolve, checkInterval));
