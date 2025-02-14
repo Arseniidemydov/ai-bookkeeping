@@ -8,7 +8,7 @@ const Index = () => {
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const texts = [
     "Your AI Bookkeeper",
-    "Making expense tracking easier than ever",
+    "Expense tracking simplified",
     "No more need for an accountant"
   ];
   const navigate = useNavigate();
