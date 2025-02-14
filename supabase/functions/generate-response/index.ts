@@ -361,11 +361,11 @@ serve(async (req) => {
     const run = await startAssistantRun(currentThreadId);
     console.log('Run started with ID:', run.id);
     
-    // Updated polling configuration
+    // Wait for run completion with improved status handling
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 100;
-    const checkInterval = 500;
+    const maxAttempts = 150; // Increased max attempts
+    const checkInterval = 1000; // Increased interval to 1 second
     const startTime = Date.now();
 
     while (true) {
@@ -374,6 +374,9 @@ serve(async (req) => {
       
       if (runStatusData.status === 'completed') {
         console.log(`Run completed successfully after ${elapsedTime.toFixed(1)} seconds`);
+        
+        // Add delay after completion before fetching messages
+        await new Promise(resolve => setTimeout(resolve, 2000));
         break;
       }
       
@@ -389,7 +392,7 @@ serve(async (req) => {
       
       if (runStatusData.status === 'requires_action') {
         console.log('Run requires action:', JSON.stringify(runStatusData.required_action, null, 2));
-        break;
+        throw new Error('Assistant requires action - not implemented');
       }
       
       await new Promise(resolve => setTimeout(resolve, checkInterval));
@@ -399,14 +402,20 @@ serve(async (req) => {
 
     console.log('Fetching assistant messages...');
     const messages = await getAssistantMessages(currentThreadId);
-    const assistantMessage = messages.data.find((msg: any) => msg.role === 'assistant');
+    console.log('Retrieved messages:', JSON.stringify(messages.data, null, 2));
+    
+    const assistantMessage = messages.data.find((msg: any) => 
+      msg.role === 'assistant' && msg.content && msg.content.length > 0
+    );
     
     if (!assistantMessage) {
+      console.error('No valid assistant message found in response. Messages:', JSON.stringify(messages.data, null, 2));
       throw new Error('No assistant message found in response');
     }
 
-    const generatedText = assistantMessage?.content[0]?.text?.value;
+    const generatedText = assistantMessage.content[0]?.text?.value;
     if (!generatedText) {
+      console.error('No text content found in message:', JSON.stringify(assistantMessage, null, 2));
       throw new Error('No valid response content found');
     }
 
