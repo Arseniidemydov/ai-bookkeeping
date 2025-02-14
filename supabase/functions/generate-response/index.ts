@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -324,11 +323,11 @@ serve(async (req) => {
     const run = await startAssistantRun(currentThreadId);
     console.log('Run started with ID:', run.id);
     
-    // Poll for completion with 50 second timeout and better logging
+    // Poll for completion with 10 second timeout and better logging
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 50; // Reduced to 50 seconds (1 check per second)
-    const checkInterval = 1000; // Keep 1 second interval
+    const maxAttempts = 10; // Reduced to 10 attempts (5 second total with 500ms interval)
+    const checkInterval = 500; // Check every 500ms instead of every second
     const startTime = Date.now();
 
     while (true) {
