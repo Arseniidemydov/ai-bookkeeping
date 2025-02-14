@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Download, FileText } from "lucide-react";
 import { format } from "date-fns";
+import html2pdf from 'html2pdf.js';
+import { toast } from "sonner";
 
 interface ChatMessageProps {
   content: string;
@@ -36,16 +38,42 @@ const isHTML = (str: string) => {
   return htmlRegex.test(str);
 };
 
-const downloadHTML = (content: string) => {
-  const blob = new Blob([content], { type: 'text/html' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `report-${format(new Date(), 'yyyy-MM-dd')}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
+const downloadPDF = async (content: string) => {
+  try {
+    // Create a temporary div to hold the HTML content
+    const element = document.createElement('div');
+    element.innerHTML = content;
+    element.style.padding = '20px';
+    document.body.appendChild(element);
+
+    const opt = {
+      margin: 1,
+      filename: `report-${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+
+    // Convert to PDF
+    await html2pdf().set(opt).from(element).save();
+
+    // Clean up
+    document.body.removeChild(element);
+    toast.success("Report downloaded as PDF");
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    toast.error("Failed to generate PDF. Downloading as HTML instead.");
+    // Fallback to HTML download
+    const blob = new Blob([content], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report-${format(new Date(), 'yyyy-MM-dd')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }
 };
 
 export function ChatMessage({ content, sender, timestamp, file }: ChatMessageProps) {
@@ -94,7 +122,7 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
                 variant="ghost"
                 size="sm"
                 className="text-white/60 hover:text-white flex items-center gap-1.5 -ml-2"
-                onClick={() => downloadHTML(content)}
+                onClick={() => downloadPDF(content)}
               >
                 <Download className="w-4 h-4" />
                 Download Report
