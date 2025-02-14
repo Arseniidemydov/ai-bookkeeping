@@ -1,5 +1,7 @@
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 interface ChatMessageProps {
   content: string;
@@ -28,7 +30,26 @@ const formatBoldText = (text: string) => {
   });
 };
 
+const isHTML = (str: string) => {
+  const htmlRegex = /<[a-z][\s\S]*>/i;
+  return htmlRegex.test(str);
+};
+
+const downloadHTML = (content: string) => {
+  const blob = new Blob([content], { type: 'text/html' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `report-${new Date().toISOString().slice(0, 10)}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+};
+
 export function ChatMessage({ content, sender, timestamp, file }: ChatMessageProps) {
+  const containsHTML = isHTML(content);
+
   return (
     <div
       className={cn(
@@ -64,7 +85,20 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
         <p className="text-sm leading-relaxed whitespace-pre-line">
           {formatBoldText(content)}
         </p>
-        <span className="text-xs text-white/60 mt-1 block">{timestamp}</span>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-white/60">{timestamp}</span>
+          {containsHTML && sender === "other" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white/60 hover:text-white flex items-center gap-1"
+              onClick={() => downloadHTML(content)}
+            >
+              <Download className="w-4 h-4" />
+              Download Report
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
