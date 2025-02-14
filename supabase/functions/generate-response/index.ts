@@ -62,6 +62,30 @@ async function processImageWithOCR(fileUrl: string) {
   return text;
 }
 
+async function cancelActiveRun(threadId: string, runId: string) {
+  console.log('Attempting to cancel run:', runId, 'for thread:', threadId);
+  try {
+    const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'OpenAI-Beta': 'assistants=v2'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Failed to cancel run:', errorData);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error canceling run:', error);
+    return false;
+  }
+}
+
 async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
   let messageContent = [];
   
@@ -121,6 +145,25 @@ async function addMessageToThread(threadId: string, content: string, fileUrl?: s
   return await response.json();
 }
 
+async function getRunStatus(threadId: string, runId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error('Run status data:', errorData);
+    throw new Error(`Failed to get run status: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+  console.log('Run status data:', JSON.stringify(data, null, 2));
+  return data;
+}
+
 async function startAssistantRun(threadId: string) {
   console.log('Starting assistant run for thread:', threadId);
   const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
@@ -132,7 +175,7 @@ async function startAssistantRun(threadId: string) {
     },
     body: JSON.stringify({
       assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4o-mini', // Changed to vision-capable model
+      model: 'gpt-4o-mini',
       tools: [
         {
           "type": "function",
@@ -192,112 +235,6 @@ async function startAssistantRun(threadId: string) {
   return await response.json();
 }
 
-async function getRunStatus(threadId: string, runId: string) {
-  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'OpenAI-Beta': 'assistants=v2'
-    }
-  });
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`Failed to get run status: ${response.status} ${errorData}`);
-  }
-
-  const data = await response.json();
-  console.log('Run status data:', JSON.stringify(data, null, 2));
-  return data;
-}
-
-async function handleToolCalls(toolCalls: any[], userId: string, supabase: any) {
-  const toolOutputs = [];
-
-  for (const toolCall of toolCalls) {
-    console.log('Processing tool call:', toolCall);
-
-    try {
-      if (toolCall.function.name === 'add_expense') {
-        const functionArgs = JSON.parse(toolCall.function.arguments);
-        console.log('Adding expense:', functionArgs);
-
-        const { error: insertError } = await supabase
-          .from('transactions')
-          .insert([{
-            user_id: userId,
-            amount: functionArgs.amount,
-            category: functionArgs.category,
-            description: functionArgs.description,
-            type: 'expense',
-            date: new Date().toISOString()
-          }]);
-
-        if (insertError) throw insertError;
-
-        toolOutputs.push({
-          tool_call_id: toolCall.id,
-          output: JSON.stringify({ success: true })
-        });
-      } else if (toolCall.function.name === 'add_income') {
-        const functionArgs = JSON.parse(toolCall.function.arguments);
-        console.log('Adding income:', functionArgs);
-
-        const { error: insertError } = await supabase
-          .from('transactions')
-          .insert([{
-            user_id: userId,
-            amount: functionArgs.amount,
-            category: functionArgs.source,
-            type: 'income',
-            date: new Date().toISOString()
-          }]);
-
-        if (insertError) throw insertError;
-
-        toolOutputs.push({
-          tool_call_id: toolCall.id,
-          output: JSON.stringify({ success: true })
-        });
-      } else {
-        console.log('Unhandled tool call:', toolCall.function.name);
-        toolOutputs.push({
-          tool_call_id: toolCall.id,
-          output: JSON.stringify({ success: true })
-        });
-      }
-    } catch (error) {
-      console.error('Error handling tool call:', error);
-      toolOutputs.push({
-        tool_call_id: toolCall.id,
-        output: JSON.stringify({ success: false, error: error.message })
-      });
-    }
-  }
-
-  return toolOutputs;
-}
-
-async function submitToolOutputs(threadId: string, runId: string, toolOutputs: any[]) {
-  console.log('Submitting tool outputs:', toolOutputs);
-  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/submit_tool_outputs`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v2'
-    },
-    body: JSON.stringify({ tool_outputs: toolOutputs })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    console.error('Tool outputs submission error:', errorData);
-    throw new Error(`Failed to submit tool outputs: ${response.status} ${errorData}`);
-  }
-
-  return await response.json();
-}
-
 async function getAssistantMessages(threadId: string) {
   const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
     headers: {
@@ -320,10 +257,6 @@ serve(async (req) => {
   }
 
   try {
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
-
     const { prompt, userId, threadId, fileUrl } = await req.json();
     console.log('Received request:', { prompt, userId, threadId, fileUrl });
     
@@ -336,8 +269,30 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
-    // Add message to thread with proper handling of file URLs
-    await addMessageToThread(currentThreadId, prompt, fileUrl);
+    try {
+      // Add message to thread with proper handling of file URLs
+      await addMessageToThread(currentThreadId, prompt, fileUrl);
+    } catch (error) {
+      if (error.message.includes("while a run") && error.message.includes("is active")) {
+        // Extract run ID from error message
+        const runIdMatch = error.message.match(/run_([\w]+)/);
+        if (runIdMatch && runIdMatch[1]) {
+          const activeRunId = `run_${runIdMatch[1]}`;
+          console.log('Detected active run:', activeRunId);
+          
+          // Try to cancel the active run
+          const cancelled = await cancelActiveRun(currentThreadId, activeRunId);
+          if (cancelled) {
+            // If successfully cancelled, retry adding the message
+            await addMessageToThread(currentThreadId, prompt, fileUrl);
+          } else {
+            throw new Error('Failed to cancel active run and retry message');
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
 
     // Start the assistant run
     const run = await startAssistantRun(currentThreadId);
@@ -360,20 +315,10 @@ serve(async (req) => {
         throw new Error(`Run failed with status: ${runStatusData.status}. Last error: ${runStatusData.last_error?.message || 'Unknown error'}`);
       }
       
-      if (runStatusData.status === 'requires_action') {
-        console.log('Run requires action:', runStatusData.required_action);
-        const toolCalls = runStatusData.required_action.submit_tool_outputs.tool_calls;
-        const toolOutputs = await handleToolCalls(toolCalls, userId, supabase);
-        
-        // Submit tool outputs
-        console.log('Submitting tool outputs');
-        await submitToolOutputs(currentThreadId, run.id, toolOutputs);
-      }
-      
       if (attempts >= maxAttempts) {
         throw new Error('Assistant run timed out');
       }
-
+      
       // Wait before checking status again
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       runStatusData = await getRunStatus(currentThreadId, run.id);
