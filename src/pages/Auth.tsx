@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,7 +53,7 @@ const Auth = () => {
           password,
         });
         if (error) throw error;
-        navigate('/');
+        navigate('/chat'); // Changed from '/' to '/chat'
       }
     } catch (error) {
       const e = error as Error;
