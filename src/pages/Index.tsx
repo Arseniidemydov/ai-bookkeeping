@@ -35,8 +35,10 @@ const Index = () => {
       }
     }, 100); // Typing speed
 
-    return () => clearInterval(typingInterval);
-  }, [currentTextIndex]);
+    return () => {
+      clearInterval(typingInterval);
+    };
+  }, [currentTextIndex, texts]);
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
