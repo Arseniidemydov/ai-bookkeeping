@@ -334,11 +334,11 @@ serve(async (req) => {
     const run = await startAssistantRun(currentThreadId);
     console.log('Run started with ID:', run.id);
     
-    // Poll for completion with 10 second timeout and better logging
+    // Updated polling configuration
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 10; // Reduced to 10 attempts (5 second total with 500ms interval)
-    const checkInterval = 500; // Check every 500ms instead of every second
+    const maxAttempts = 100; // Increased to 100 attempts (50 seconds total with 500ms interval)
+    const checkInterval = 500; // Keep 500ms interval
     const startTime = Date.now();
 
     while (true) {
@@ -362,6 +362,8 @@ serve(async (req) => {
       
       if (runStatusData.status === 'requires_action') {
         console.log('Run requires action:', JSON.stringify(runStatusData.required_action, null, 2));
+        // Handle required actions here if needed
+        break; // Exit the loop when action is required
       }
       
       // Wait before checking status again
