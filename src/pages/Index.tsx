@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
-  const [text, setText] = useState("Your AI Bookkeeper");
+  const [text, setText] = useState("");
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const texts = [
     "Your AI Bookkeeper",
@@ -40,8 +40,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
-      <div className="text-center space-y-8">
-        <h1 className="text-4xl md:text-6xl font-bold text-white min-h-[80px]">
+      <div className="text-center space-y-8 max-w-2xl mx-auto px-6">
+        <h1 className="text-2xl md:text-3xl font-light text-white min-h-[80px] tracking-wide">
           {text}
         </h1>
         <Button 
