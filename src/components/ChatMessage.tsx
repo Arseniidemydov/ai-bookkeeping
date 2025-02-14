@@ -50,8 +50,22 @@ const downloadPDF = async (content: string) => {
       margin: 1,
       filename: `report-${format(new Date(), 'yyyy-MM-dd')}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      html2canvas: { 
+        scale: 2,
+        letterRendering: true,
+        useCORS: true
+      },
+      jsPDF: { 
+        unit: 'in', 
+        format: 'letter', 
+        orientation: 'portrait'
+      },
+      pagebreak: { 
+        mode: ['avoid-all', 'css', 'legacy'],
+        before: '.page-break-before',
+        after: '.page-break-after',
+        avoid: ['tr', 'td', 'div', 'p', 'table']
+      }
     };
 
     // Convert to PDF
