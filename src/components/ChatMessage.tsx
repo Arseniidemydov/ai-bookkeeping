@@ -1,3 +1,4 @@
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Download, FileText } from "lucide-react";
@@ -18,19 +19,26 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  let formattedText = text
-    .replace(/\\n/g, '\n')
-    .replace(/(\d+\.)/g, '\n$1')
-    .replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '$1\u2024$2\u2024$3');
+  // First, protect dates by replacing them with a special token
+  let formattedText = text.replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '###DATE###$1\u2024$2\u2024$3###DATE###');
   
-  const segments = formattedText.split(/(\*\*.*?\*\*)/g);
+  // Apply other formatting
+  formattedText = formattedText
+    .replace(/\\n/g, '\n')
+    .replace(/(\d+\.)/g, '\n$1');
+  
+  const segments = formattedText.split(/(\*\*.*?\*\*|###DATE###.*?###DATE###)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
       const boldText = segment.slice(2, -2);
       return <span key={index} className="font-semibold whitespace-nowrap">{boldText}</span>;
     }
-    return <span key={index} className="whitespace-pre-line break-words">{segment}</span>;
+    if (segment.startsWith('###DATE###') && segment.endsWith('###DATE###')) {
+      const dateText = segment.slice(10, -10);
+      return <span key={index} className="whitespace-nowrap">{dateText}</span>;
+    }
+    return <span key={index} className="whitespace-pre-line">{segment}</span>;
   });
 };
 
