@@ -2,9 +2,15 @@
 import { processImageWithOCR } from './ocr.ts';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
 
 if (!openAIApiKey) {
   throw new Error('OPENAI_API_KEY environment variable is not set');
+}
+
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export async function createThread() {
@@ -84,117 +90,138 @@ export async function addMessageToThread(threadId: string, content: string, file
 
 export async function startAssistantRun(threadId: string) {
   console.log('Starting assistant run for thread:', threadId);
-  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v2'
-    },
-    body: JSON.stringify({
-      assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-      model: 'gpt-4o',
-      tools: [
-        {
-          "type": "function",
-          "function": {
-            "name": "fetch_user_transactions",
-            "description": "Retrieves all financial transactions for a specific user from the Supabase database.",
-            "parameters": {
-              "type": "object",
-              "required": ["user_id"],
-              "properties": {
-                "user_id": {
-                  "type": "string",
-                  "description": "The unique identifier of the user whose transactions should be retrieved."
-                }
-              }
-            }
-          }
-        },
-        {
-          "type": "function",
-          "function": {
-            "name": "add_income",
-            "description": "Add an income to the user's account",
-            "parameters": {
-              "type": "object",
-              "required": [
-                "user_id",
-                "amount",
-                "source",
-                "date",
-                "category"
-              ],
-              "properties": {
-                "user_id": {
-                  "type": "string",
-                  "description": "Unique identifier for the user."
-                },
-                "amount": {
-                  "type": "number",
-                  "description": "Amount of the income."
-                },
-                "source": {
-                  "type": "string",
-                  "description": "Source of the income (e.g., salary, freelance, etc.)."
-                },
-                "date": {
-                  "type": "string",
-                  "description": "The date of the income in YYYY-MM-DD format."
-                },
-                "category": {
-                  "type": "string",
-                  "description": "Category of the income (e.g., passive, active, investments, etc.)."
-                }
-              }
-            }
-          }
-        },
-        {
-          "type": "function",
-          "function": {
-            "name": "add_expense",
-            "description": "Add an expense to the user's account",
-            "parameters": {
-              "type": "object",
-              "required": [
-                "user_id",
-                "amount",
-                "category",
-                "date"
-              ],
-              "properties": {
-                "user_id": {
-                  "type": "string",
-                  "description": "Unique identifier for the user."
-                },
-                "amount": {
-                  "type": "number",
-                  "description": "Amount of the expense."
-                },
-                "category": {
-                  "type": "string",
-                  "description": "Category of the expense (e.g., food, transport, etc.)."
-                },
-                "date": {
-                  "type": "string",
-                  "description": "The date of the expense in DD-MM-YYYY format."
-                }
-              }
-            }
-          }
-        }
-      ]
-    })
-  });
+  
+  let lastError;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt - 1);
+        console.log(`Retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        await sleep(delay);
+      }
 
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`Failed to start run: ${response.status} ${errorData}`);
+      const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v2'
+        },
+        body: JSON.stringify({
+          assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
+          model: 'gpt-4o',
+          temperature: 0.7, // Reduced temperature for more focused responses
+          tools: [
+            {
+              "type": "function",
+              "function": {
+                "name": "fetch_user_transactions",
+                "description": "Retrieves all financial transactions for a specific user from the Supabase database.",
+                "parameters": {
+                  "type": "object",
+                  "required": ["user_id"],
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "description": "The unique identifier of the user whose transactions should be retrieved."
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "add_income",
+                "description": "Add an income to the user's account",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "user_id",
+                    "amount",
+                    "source",
+                    "date",
+                    "category"
+                  ],
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "description": "Unique identifier for the user."
+                    },
+                    "amount": {
+                      "type": "number",
+                      "description": "Amount of the income."
+                    },
+                    "source": {
+                      "type": "string",
+                      "description": "Source of the income (e.g., salary, freelance, etc.)."
+                    },
+                    "date": {
+                      "type": "string",
+                      "description": "The date of the income in YYYY-MM-DD format."
+                    },
+                    "category": {
+                      "type": "string",
+                      "description": "Category of the income (e.g., passive, active, investments, etc.)."
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "add_expense",
+                "description": "Add an expense to the user's account",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "user_id",
+                    "amount",
+                    "category",
+                    "date"
+                  ],
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "description": "Unique identifier for the user."
+                    },
+                    "amount": {
+                      "type": "number",
+                      "description": "Amount of the expense."
+                    },
+                    "category": {
+                      "type": "string",
+                      "description": "Category of the expense (e.g., food, transport, etc.)."
+                    },
+                    "date": {
+                      "type": "string",
+                      "description": "The date of the expense in DD-MM-YYYY format."
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Failed to start run: ${response.status} ${errorData}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed:`, error);
+      lastError = error;
+      if (attempt === MAX_RETRIES - 1) {
+        throw new Error(`Failed after ${MAX_RETRIES} attempts: ${error.message}`);
+      }
+    }
   }
 
-  return await response.json();
+  throw lastError;
 }
 
 export async function getRunStatus(threadId: string, runId: string) {
