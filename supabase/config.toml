@@ -1,6 +1,9 @@
 
 project_id = "pqfawxyxvjocxfhsjdec"
 
+[functions.create-plaid-link-token]
+verify_jwt = true
+
 [functions.generate-response]
 verify_jwt = false
 
