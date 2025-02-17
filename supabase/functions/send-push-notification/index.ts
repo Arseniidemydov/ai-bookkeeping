@@ -6,10 +6,12 @@ import * as webPush from 'https://esm.sh/web-push@3.6.7'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json',
 }
 
 interface PushNotificationPayload {
-  user_id?: string; // Optional: to send to specific user
+  user_id?: string;
   title: string;
   body: string;
   data?: Record<string, string>;
@@ -18,20 +20,27 @@ interface PushNotificationPayload {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    console.log('Received request:', req.method);
+    
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     const payload = await req.json() as PushNotificationPayload;
+    console.log('Received payload:', payload);
+    
     const { user_id, title, body, data } = payload;
 
     if (!title || !body) {
-      throw new Error('Missing required fields: title and body')
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: title and body' }),
+        { headers: corsHeaders, status: 400 }
+      );
     }
 
     // Query to get device tokens
@@ -39,28 +48,36 @@ serve(async (req) => {
       .from('device_tokens')
       .select('token');
 
-    // If user_id is provided, filter for that specific user
     if (user_id) {
       query = query.eq('user_id', user_id);
     }
 
     const { data: deviceTokens, error: fetchError } = await query;
+    console.log('Device tokens found:', deviceTokens?.length);
 
     if (fetchError) {
-      throw new Error(`Error fetching device tokens: ${fetchError.message}`);
+      console.error('Error fetching tokens:', fetchError);
+      return new Response(
+        JSON.stringify({ error: `Error fetching device tokens: ${fetchError.message}` }),
+        { headers: corsHeaders, status: 500 }
+      );
     }
 
     if (!deviceTokens || deviceTokens.length === 0) {
-      throw new Error('No device tokens found');
+      return new Response(
+        JSON.stringify({ error: 'No device tokens found' }),
+        { headers: corsHeaders, status: 404 }
+      );
     }
 
-    console.log(`Found ${deviceTokens.length} device tokens to notify`);
-
     // Configure web push
+    const VAPID_PUBLIC_KEY = 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA';
+    const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
+    
     webPush.setVapidDetails(
       'mailto:arsenii.demydov@gmail.com',
-      'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA',
-      Deno.env.get('VAPID_PRIVATE_KEY') ?? ''
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
     );
 
     const results = [];
@@ -68,6 +85,8 @@ serve(async (req) => {
     // Process each token
     for (const { token } of deviceTokens) {
       try {
+        console.log('Processing token:', token.substring(0, 20) + '...');
+        
         // Check if the token is a web push subscription (it will be a JSON string)
         if (token.startsWith('{')) {
           // Web Push
@@ -109,26 +128,20 @@ serve(async (req) => {
           results.push({ type: 'fcm', success: true, result, token });
         }
       } catch (error) {
-        console.error(`Failed to send notification to token ${token}:`, error);
+        console.error(`Failed to send notification to token:`, error);
         results.push({ type: 'unknown', success: false, error: error.message, token });
       }
     }
 
     return new Response(
       JSON.stringify({ success: true, results }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
+      { headers: corsHeaders }
+    );
   } catch (error) {
     console.error('Error in send-push-notification:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
-    )
+      { headers: corsHeaders, status: 400 }
+    );
   }
 })
