@@ -87,46 +87,49 @@ export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProp
   };
 
   return (
-    <div className="flex gap-2 mt-2">
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFileSelect}
-        className="hidden"
-        id="camera-input"
-      />
-      <input
-        type="file"
-        accept="image/*"
-        onChange={handleFileSelect}
-        className="hidden"
-        id="gallery-input"
-      />
-      <label htmlFor="camera-input">
-        <Button
-          className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
-          disabled={isUploading}
-          asChild
-        >
-          <span>
-            <Camera className="w-4 h-4 mr-2" />
-            Take Photo
-          </span>
-        </Button>
-      </label>
-      <label htmlFor="gallery-input">
-        <Button
-          className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
-          disabled={isUploading}
-          asChild
-        >
-          <span>
-            <ImagePlus className="w-4 h-4 mr-2" />
-            Choose Image
-          </span>
-        </Button>
-      </label>
+    <div className="flex flex-col gap-2 mt-2">
+      <p className="text-sm text-white/80">Would you like to attach picture?</p>
+      <div className="flex gap-2">
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileSelect}
+          className="hidden"
+          id="camera-input"
+        />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+          id="gallery-input"
+        />
+        <label htmlFor="camera-input">
+          <Button
+            className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
+            disabled={isUploading}
+            asChild
+          >
+            <span>
+              <Camera className="w-4 h-4 mr-2" />
+              Take Photo
+            </span>
+          </Button>
+        </label>
+        <label htmlFor="gallery-input">
+          <Button
+            className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
+            disabled={isUploading}
+            asChild
+          >
+            <span>
+              <ImagePlus className="w-4 h-4 mr-2" />
+              Choose Image
+            </span>
+          </Button>
+        </label>
+      </div>
     </div>
   );
 }
