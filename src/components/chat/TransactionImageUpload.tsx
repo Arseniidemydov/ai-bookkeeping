@@ -43,11 +43,16 @@ export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProp
 
       if (uploadError) throw uploadError;
 
+      // Get the public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('transaction_attachments')
+        .getPublicUrl(fileName);
+
       // Create a document page entry
       const { data: pageData, error: pageError } = await supabase
         .from('document_pages')
         .insert([{
-          image_url: `${process.env.VITE_SUPABASE_URL}/storage/v1/object/public/transaction_attachments/${fileName}`,
+          image_url: publicUrl,
           page_number: 1,
           document_id: null
         }])
