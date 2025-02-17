@@ -19,18 +19,51 @@ serve(async (req) => {
     );
 
     const webhookData = await req.json();
-    console.log('Received webhook:', JSON.stringify(webhookData, null, 2));
+    console.log('Received Plaid webhook:', JSON.stringify(webhookData, null, 2));
 
-    if (webhookData.webhook_type === 'TRANSACTIONS') {
-      const { removed, added } = webhookData;
+    if (webhookData.webhook_type === 'TRANSACTIONS' && webhookData.webhook_code === 'SYNC_UPDATES_AVAILABLE') {
+      const { item_id } = webhookData;
+      
+      // Get the user associated with this Plaid item_id
+      const { data: connectionData, error: connectionError } = await supabase
+        .from('plaid_connections')
+        .select('user_id, institution_name')
+        .eq('item_id', item_id)
+        .single();
 
-      if (added?.length > 0) {
-        // Here we'll implement the notification system
-        // For now, we'll just log the new transactions
-        console.log('New transactions:', JSON.stringify(added, null, 2));
+      if (connectionError) {
+        throw connectionError;
+      }
 
-        // TODO: Send push notification to the user
-        // We'll implement this after setting up the mobile notifications
+      if (!connectionData) {
+        throw new Error('No connection found for item_id: ' + item_id);
+      }
+
+      // Get the user's device tokens
+      const { data: tokens, error: tokensError } = await supabase
+        .from('device_tokens')
+        .select('token')
+        .eq('user_id', connectionData.user_id);
+
+      if (tokensError) {
+        throw tokensError;
+      }
+
+      if (tokens && tokens.length > 0) {
+        // Send push notification
+        const notificationResponse = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            tokens: tokens.map(t => t.token),
+            title: 'New Transactions Available',
+            body: `New transactions detected in your ${connectionData.institution_name} account`,
+            data: {
+              type: 'TRANSACTIONS_UPDATE',
+              institution: connectionData.institution_name
+            }
+          }
+        });
+
+        console.log('Push notification response:', notificationResponse);
       }
     }
 
@@ -44,7 +77,7 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error processing Plaid webhook:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
