@@ -76,7 +76,7 @@ export function usePushNotifications() {
                 const registration = await navigator.serviceWorker.register('/sw.js');
                 const subscription = await registration.pushManager.subscribe({
                   userVisibleOnly: true,
-                  applicationServerKey: 'YOUR_VAPID_PUBLIC_KEY' // You'll need to replace this with your VAPID key
+                  applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
                 });
                 
                 const token = JSON.stringify(subscription);
