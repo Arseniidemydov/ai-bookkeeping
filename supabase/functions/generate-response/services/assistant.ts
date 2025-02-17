@@ -1,9 +1,8 @@
-
 import { processImageWithOCR } from './ocr.ts';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 1000; // 1 second
+const INITIAL_RETRY_DELAY = 1000;
 
 if (!openAIApiKey) {
   throw new Error('OPENAI_API_KEY environment variable is not set');
@@ -46,87 +45,125 @@ async function getActiveRuns(threadId: string) {
   }
 
   const runs = await response.json();
-  return runs.data.filter((run: any) => 
+  const activeRuns = runs.data.filter((run: any) => 
     ['queued', 'in_progress', 'requires_action'].includes(run.status)
   );
+  
+  console.log(`Found ${activeRuns.length} active runs:`, JSON.stringify(activeRuns));
+  return activeRuns;
+}
+
+async function cancelRun(threadId: string, runId: string) {
+  try {
+    const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'OpenAI-Beta': 'assistants=v2'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to cancel run ${runId}:`, await response.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`Error canceling run ${runId}:`, error);
+    return false;
+  }
 }
 
 async function waitForActiveRuns(threadId: string) {
-  const maxAttempts = 10;
-  const delay = 1000;
+  const maxAttempts = 30;
+  const initialDelay = 1000;
   let attempts = 0;
 
   while (attempts < maxAttempts) {
     const activeRuns = await getActiveRuns(threadId);
+    
     if (activeRuns.length === 0) {
       return;
     }
+
+    if (attempts > maxAttempts - 3) {
+      console.log('Getting close to timeout, attempting to cancel active runs...');
+      for (const run of activeRuns) {
+        await cancelRun(threadId, run.id);
+      }
+    }
     
-    console.log(`Thread has ${activeRuns.length} active runs. Waiting...`);
+    const delay = initialDelay * Math.pow(1.2, attempts);
+    console.log(`Thread has ${activeRuns.length} active runs. Waiting ${delay}ms... (Attempt ${attempts + 1}/${maxAttempts})`);
     await sleep(delay);
     attempts++;
   }
 
-  throw new Error('Timeout waiting for active runs to complete');
+  throw new Error(`Timeout waiting for active runs to complete after ${maxAttempts} attempts`);
 }
 
 export async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
-  // Wait for any active runs to complete before adding a new message
-  await waitForActiveRuns(threadId);
+  try {
+    await waitForActiveRuns(threadId);
 
-  let messageContent = [];
-  
-  if (content.trim()) {
-    messageContent.push({
-      type: 'text',
-      text: content
-    });
-  }
-  
-  if (fileUrl) {
-    try {
-      const extractedText = await processImageWithOCR(fileUrl);
-      if (extractedText) {
-        messageContent.push({
-          type: 'text',
-          text: `Extracted text from image:\n${extractedText}`
-        });
-      }
-    } catch (error) {
-      console.error('Error processing image:', error);
-      const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-      if (isImage) {
-        messageContent.push({
-          type: 'image_url',
-          image_url: {
-            url: fileUrl
-          }
-        });
+    let messageContent = [];
+    
+    if (content.trim()) {
+      messageContent.push({
+        type: 'text',
+        text: content
+      });
+    }
+    
+    if (fileUrl) {
+      try {
+        const extractedText = await processImageWithOCR(fileUrl);
+        if (extractedText) {
+          messageContent.push({
+            type: 'text',
+            text: `Extracted text from image:\n${extractedText}`
+          });
+        }
+      } catch (error) {
+        console.error('Error processing image:', error);
+        const isImage = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+        if (isImage) {
+          messageContent.push({
+            type: 'image_url',
+            image_url: {
+              url: fileUrl
+            }
+          });
+        }
       }
     }
+
+    console.log('Sending message with content:', JSON.stringify(messageContent, null, 2));
+
+    const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      body: JSON.stringify({
+        role: 'user',
+        content: messageContent
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Failed to add message: ${response.status} ${errorData}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error in addMessageToThread:', error);
+    throw error;
   }
-
-  console.log('Sending message with content:', JSON.stringify(messageContent, null, 2));
-
-  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v2'
-    },
-    body: JSON.stringify({
-      role: 'user',
-      content: messageContent
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`Failed to add message: ${response.status} ${errorData}`);
-  }
-
-  return await response.json();
 }
 
 export async function startAssistantRun(threadId: string) {
