@@ -1,13 +1,12 @@
 
-# Project ID from the Supabase dashboard
 project_id = "pqfawxyxvjocxfhsjdec"
 
 [functions.generate-response]
 verify_jwt = false
 
 [storage]
-[[storage.buckets]]
-name = "transaction_attachments"
+[storage.buckets]
+[storage.buckets.transaction_attachments]
 public = true
 file_size_limit = "10MB"
 allowed_mime_types = ["image/*"]
