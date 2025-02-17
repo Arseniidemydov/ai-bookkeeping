@@ -5,6 +5,7 @@ import { Download, FileText } from "lucide-react";
 import { format } from "date-fns";
 import html2pdf from 'html2pdf.js';
 import { toast } from "sonner";
+import { TransactionImageUpload } from "./chat/TransactionImageUpload";
 
 interface ChatMessageProps {
   content: string;
@@ -92,6 +93,10 @@ const downloadPDF = async (content: string) => {
 
 export function ChatMessage({ content, sender, timestamp, file }: ChatMessageProps) {
   const containsHTML = isHTML(content);
+  const showImageUpload = sender === "other" && (
+    content.includes("Income added") || 
+    content.includes("Expense added")
+  );
 
   return (
     <div
@@ -146,8 +151,11 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
             formatBoldText(content)
           )}
         </div>
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-white/60">{timestamp}</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-white/60">{timestamp}</span>
+          </div>
+          {showImageUpload && <TransactionImageUpload />}
         </div>
       </div>
     </div>
