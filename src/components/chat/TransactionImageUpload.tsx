@@ -105,9 +105,7 @@ export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProp
       />
       <label htmlFor="camera-input">
         <Button
-          variant="outline"
-          size="sm"
-          className="cursor-pointer"
+          className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
           disabled={isUploading}
           asChild
         >
@@ -119,9 +117,7 @@ export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProp
       </label>
       <label htmlFor="gallery-input">
         <Button
-          variant="outline"
-          size="sm"
-          className="cursor-pointer"
+          className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
           disabled={isUploading}
           asChild
         >
