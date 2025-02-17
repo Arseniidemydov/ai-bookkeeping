@@ -8,6 +8,10 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Log the incoming request method and headers for debugging
+  console.log('Received request method:', req.method);
+  console.log('Received request headers:', Object.fromEntries(req.headers.entries()));
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -18,11 +22,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const webhookData = await req.json();
-    console.log('Received Plaid webhook:', JSON.stringify(webhookData, null, 2));
+    // Log the raw request body
+    const rawBody = await req.text();
+    console.log('Raw webhook body:', rawBody);
+
+    // Parse the JSON body
+    const webhookData = JSON.parse(rawBody);
+    console.log('Parsed Plaid webhook data:', JSON.stringify(webhookData, null, 2));
 
     if (webhookData.webhook_type === 'TRANSACTIONS' && webhookData.webhook_code === 'SYNC_UPDATES_AVAILABLE') {
       const { item_id } = webhookData;
+      console.log('Processing transaction update for item_id:', item_id);
       
       // Get the user associated with this Plaid item_id
       const { data: connectionData, error: connectionError } = await supabase
@@ -32,12 +42,16 @@ serve(async (req) => {
         .single();
 
       if (connectionError) {
+        console.error('Error fetching connection data:', connectionError);
         throw connectionError;
       }
 
       if (!connectionData) {
+        console.error('No connection found for item_id:', item_id);
         throw new Error('No connection found for item_id: ' + item_id);
       }
+
+      console.log('Found connection data:', connectionData);
 
       // Get the user's device tokens
       const { data: tokens, error: tokensError } = await supabase
@@ -46,10 +60,14 @@ serve(async (req) => {
         .eq('user_id', connectionData.user_id);
 
       if (tokensError) {
+        console.error('Error fetching device tokens:', tokensError);
         throw tokensError;
       }
 
+      console.log('Found device tokens:', tokens);
+
       if (tokens && tokens.length > 0) {
+        console.log('Sending push notification for tokens:', tokens.map(t => t.token));
         // Send push notification
         const notificationResponse = await supabase.functions.invoke('send-push-notification', {
           body: {
@@ -64,7 +82,11 @@ serve(async (req) => {
         });
 
         console.log('Push notification response:', notificationResponse);
+      } else {
+        console.log('No device tokens found for user:', connectionData.user_id);
       }
+    } else {
+      console.log('Received non-transaction webhook or different webhook code:', webhookData.webhook_type, webhookData.webhook_code);
     }
 
     return new Response(
