@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
@@ -45,7 +46,11 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
-    const messageWithContext = `User's transactions context: ${transactionsContext}\n\nUser's message: ${prompt}`;
+    // Optimize the message context to reduce token usage
+    const messageWithContext = transactionsContext ? 
+      `Context: ${transactionsContext}\nUser: ${prompt}` : 
+      `User: ${prompt}`;
+
     await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
 
     console.log('Starting assistant run...');
@@ -54,8 +59,9 @@ serve(async (req) => {
     
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 30;
-    const checkInterval = 2000;
+    const maxAttempts = 5; // Increased max attempts
+    const initialDelay = 2000;
+    const maxDelay = 32000; // Maximum delay of 32 seconds
 
     while (attempts < maxAttempts) {
       console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
@@ -79,22 +85,44 @@ serve(async (req) => {
       }
       
       if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
+        // Check specifically for rate limit errors
+        if (runStatusData.last_error?.code === 'rate_limit_exceeded') {
+          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "2");
+          const delay = Math.min(Math.max(retryAfter * 1000, initialDelay), maxDelay);
+          
+          console.log(`Rate limit hit. Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          // Restart the run after waiting
+          console.log('Restarting assistant run...');
+          const newRun = await startAssistantRun(currentThreadId);
+          runStatusData = await getRunStatus(currentThreadId, newRun.id);
+          attempts++;
+          continue;
+        }
+
         const error = `Run failed with status: ${runStatusData.status}. Last status data: ${JSON.stringify(runStatusData)}`;
         console.error(error);
         throw new Error(error);
       }
       
       if (runStatusData.status === 'requires_action') {
-        const toolOutputs = await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action);
+        const toolOutputs = await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action, supabase);
         console.log('Tool outputs submitted:', JSON.stringify(toolOutputs));
       }
       
-      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      // Calculate exponential backoff delay with jitter
+      const delay = Math.min(
+        initialDelay * Math.pow(2, attempts) * (0.5 + Math.random() * 0.5), 
+        maxDelay
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
       runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
     }
 
-    throw new Error('Assistant run timed out');
+    throw new Error('Assistant run timed out after maximum retries');
   } catch (error) {
     console.error('Error in generate-response function:', error);
     return new Response(JSON.stringify({ error: error.message }), {
@@ -104,12 +132,11 @@ serve(async (req) => {
   }
 });
 
-async function handleRequiredAction(threadId: string, runId: string, requiredAction: any) {
+async function handleRequiredAction(threadId: string, runId: string, requiredAction: any, supabase: any) {
   console.log('Handling required action:', JSON.stringify(requiredAction, null, 2));
   
   const toolCalls = requiredAction.submit_tool_outputs.tool_calls;
   const toolOutputs = [];
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   for (const toolCall of toolCalls) {
     const functionName = toolCall.function.name;
@@ -151,7 +178,7 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
 
       toolOutputs.push({
         tool_call_id: toolCall.id,
-        output: output
+        output: JSON.stringify(output)
       });
     } catch (error) {
       console.error(`Error processing ${functionName}:`, error);
