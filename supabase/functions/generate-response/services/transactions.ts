@@ -49,7 +49,7 @@ export async function addIncomeTransaction(
         type: 'income',
         description: source,
         category: category,
-        date: date // Using the date parameter directly since it's already in YYYY-MM-DD format
+        date: date
       }])
       .select()
       .single();
@@ -71,14 +71,14 @@ export async function addExpenseTransaction(
   supabase: any, 
   userId: string, 
   amount: number, 
-  category: string
+  category: string,
+  date: string
 ) {
   if (!userId) {
     throw new Error('User ID is required for adding expense transaction');
   }
 
   try {
-    const date = new Date().toISOString().split('T')[0]; // Current date in YYYY-MM-DD format
     const { data, error } = await supabase
       .from('transactions')
       .insert([{

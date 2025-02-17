@@ -161,7 +161,8 @@ export async function startAssistantRun(threadId: string) {
               "required": [
                 "user_id",
                 "amount",
-                "category"
+                "category",
+                "date"
               ],
               "properties": {
                 "user_id": {
@@ -170,11 +171,15 @@ export async function startAssistantRun(threadId: string) {
                 },
                 "amount": {
                   "type": "number",
-                  "description": "Amount of the expense (positive number)."
+                  "description": "Amount of the expense."
                 },
                 "category": {
                   "type": "string",
                   "description": "Category of the expense (e.g., food, transport, etc.)."
+                },
+                "date": {
+                  "type": "string",
+                  "description": "The date of the expense in DD-MM-YYYY format."
                 }
               }
             }

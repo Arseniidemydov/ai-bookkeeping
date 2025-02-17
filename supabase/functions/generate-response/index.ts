@@ -138,7 +138,8 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
             supabase,
             functionArgs.user_id,
             functionArgs.amount,
-            functionArgs.category
+            functionArgs.category,
+            functionArgs.date
           );
           break;
         case 'get_pdf_images':
