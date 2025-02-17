@@ -100,6 +100,32 @@ export function Dashboard() {
     }
   };
 
+  const createTestTransaction = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error('You must be logged in to create a transaction');
+        return;
+      }
+
+      const { error } = await supabase.from('transactions').insert({
+        amount: 100,
+        type: 'income',
+        category: 'Test',
+        date: new Date().toISOString(),
+        description: 'Test transaction for push notification',
+        user_id: session.session.user.id
+      });
+
+      if (error) throw error;
+      toast.success('Test transaction created! Check for push notification.');
+      refetch();
+    } catch (error) {
+      console.error('Error creating test transaction:', error);
+      toast.error('Failed to create test transaction');
+    }
+  };
+
   const {
     data: financialData,
     refetch
@@ -272,6 +298,13 @@ export function Dashboard() {
 
       {isExpanded && <div className="mt-auto pt-4 flex justify-center gap-4">
         <PlaidLinkButton />
+        <Button 
+          variant="outline"
+          onClick={createTestTransaction}
+          className="w-full max-w-[200px] flex items-center justify-center gap-2"
+        >
+          Test Notification
+        </Button>
         <Button 
           variant="destructive" 
           onClick={handleLogout} 
