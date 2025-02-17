@@ -73,15 +73,23 @@ export function usePushNotifications() {
               
               // Register the service worker for PWA
               if ('serviceWorker' in navigator) {
-                const registration = await navigator.serviceWorker.register('/sw.js');
-                const subscription = await registration.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
-                });
-                
-                const token = JSON.stringify(subscription);
-                setPushToken(token);
-                await storeToken(token);
+                try {
+                  const registration = await navigator.serviceWorker.register('/sw.js');
+                  console.log('Service Worker registered successfully:', registration);
+                  
+                  const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
+                  });
+                  
+                  const token = JSON.stringify(subscription);
+                  console.log('Push subscription created:', token);
+                  setPushToken(token);
+                  await storeToken(token);
+                } catch (error) {
+                  console.error('Service Worker registration failed:', error);
+                  toast.error('Failed to register Service Worker');
+                }
               }
             }
           }
@@ -100,6 +108,7 @@ export function usePushNotifications() {
       }
 
       try {
+        console.log('Storing token for user:', session.session.user.id);
         const { error } = await supabase
           .from('device_tokens')
           .upsert(

@@ -6,10 +6,26 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const Chat = () => {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const { notificationsEnabled } = usePushNotifications();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check authentication
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please login to access this page');
+        navigate('/auth');
+      }
+    };
+    
+    checkAuth();
+  }, [navigate]);
 
   const requestNotifications = async () => {
     if ('Notification' in window) {
