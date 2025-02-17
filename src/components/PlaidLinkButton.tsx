@@ -37,13 +37,16 @@ export function PlaidLinkButton() {
         return;
       }
 
-      const { error } = await supabase.from('plaid_connections').insert({
-        user_id: session.session.user.id,
-        item_id: metadata.institution.institution_id,
-        institution_name: metadata.institution.name,
+      // First exchange the public token for an access token
+      const { data, error: exchangeError } = await supabase.functions.invoke('exchange-plaid-token', {
+        body: { 
+          public_token,
+          user_id: session.session.user.id,
+          metadata
+        }
       });
 
-      if (error) throw error;
+      if (exchangeError) throw exchangeError;
 
       toast.success(`Successfully connected to ${metadata.institution.name}`);
       setLinkToken(null);

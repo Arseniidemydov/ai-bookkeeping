@@ -14,9 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    const { public_token, user_id, item_id } = await req.json();
+    const { public_token, user_id, metadata } = await req.json();
 
-    if (!public_token || !user_id || !item_id) {
+    if (!public_token || !user_id || !metadata) {
       throw new Error('Missing required parameters');
     }
 
@@ -38,6 +38,7 @@ serve(async (req) => {
     });
 
     const access_token = exchangeResponse.data.access_token;
+    const item_id = exchangeResponse.data.item_id;
     
     // Store access token in Supabase
     const supabase = createClient(
@@ -45,12 +46,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { error: updateError } = await supabase
+    const { error: insertError } = await supabase
       .from('plaid_connections')
-      .update({ access_token })
-      .match({ user_id, item_id });
+      .insert({
+        user_id,
+        item_id,
+        access_token,
+        institution_name: metadata.institution.name,
+      });
 
-    if (updateError) throw updateError;
+    if (insertError) throw insertError;
 
     return new Response(
       JSON.stringify({ success: true }),
