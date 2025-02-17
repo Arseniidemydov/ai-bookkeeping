@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { subDays, subMonths, startOfDay, endOfDay, format } from "date-fns";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -19,10 +19,6 @@ interface Transaction {
   date: string;
   type: 'income' | 'expense';
   description?: string;
-  document_page_id?: string;
-  document_page?: {
-    image_url: string;
-  };
 }
 interface FinancialMetric {
   label: string;
@@ -37,7 +33,6 @@ export function Dashboard() {
   const [selectedTransactions, setSelectedTransactions] = useState<Transaction[]>([]);
   const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -81,7 +76,9 @@ export function Dashboard() {
 
   const handleDeleteTransaction = async (transactionId: number) => {
     try {
-      const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+      const {
+        error
+      } = await supabase.from('transactions').delete().eq('id', transactionId);
       if (error) throw error;
       toast.success('Transaction deleted successfully');
       setSelectedTransactions(prev => prev.filter(t => t.id !== transactionId));
@@ -92,22 +89,16 @@ export function Dashboard() {
     }
   };
 
-  const { data: financialData, refetch } = useQuery({
+  const {
+    data: financialData,
+    refetch
+  } = useQuery({
     queryKey: ['financial-metrics', selectedPeriod],
     queryFn: async () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) return null;
 
-      let query = supabase
-        .from('transactions')
-        .select(`
-          *,
-          document_page:document_page_id (
-            image_url
-          )
-        `)
-        .eq('user_id', session.session.user.id);
-
+      let query = supabase.from('transactions').select('*').eq('user_id', session.session.user.id);
       const dateRange = getDateRange(selectedPeriod);
       if (dateRange) {
         query = query.gte('date', dateRange.start.toISOString()).lte('date', dateRange.end.toISOString());
@@ -238,8 +229,7 @@ export function Dashboard() {
           <DialogTitle>{transactionType === 'income' ? 'Income' : 'Expense'} Transactions</DialogTitle>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto">
-          {selectedTransactions.map(transaction => (
-            <div key={transaction.id} className="flex items-center justify-between p-4 border-b border-gray-200 last:border-0">
+          {selectedTransactions.map(transaction => <div key={transaction.id} className="flex items-center justify-between p-4 border-b border-gray-200 last:border-0">
               <div className="flex-1">
                 <p className="font-medium">{transaction.category}</p>
                 <p className="text-sm text-gray-500">
@@ -250,66 +240,31 @@ export function Dashboard() {
                 <span className={cn("font-semibold", transactionType === 'income' ? "text-emerald-600" : "text-rose-600")}>
                   {formatCurrency(transaction.amount)}
                 </span>
-                <div className="flex items-center gap-2">
-                  {transaction.document_page?.image_url && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setSelectedImage(transaction.document_page?.image_url || null)}
-                    >
-                      <Image className="h-4 w-4 text-gray-500" />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Trash2 className="h-4 w-4 text-gray-500" />
                     </Button>
-                  )}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Trash2 className="h-4 w-4 text-gray-500" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete this transaction? This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id)}>
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this transaction? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id)}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
-            </div>
-          ))}
-          {selectedTransactions.length === 0 && (
-            <p className="text-center text-gray-500 py-4">No transactions found</p>
-          )}
+            </div>)}
+          {selectedTransactions.length === 0 && <p className="text-center text-gray-500 py-4">No transactions found</p>}
         </div>
-      </DialogContent>
-    </Dialog>
-
-    <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-      <DialogContent className="sm:max-w-[600px] p-0">
-        {selectedImage && (
-          <div className="relative">
-            <img 
-              src={selectedImage} 
-              alt="Transaction attachment" 
-              className="w-full h-auto rounded-lg"
-            />
-            <Button
-              variant="secondary"
-              className="absolute top-2 right-2"
-              onClick={() => setSelectedImage(null)}
-            >
-              Close
-            </Button>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   </div>;
