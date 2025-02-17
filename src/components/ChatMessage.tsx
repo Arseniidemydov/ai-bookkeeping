@@ -1,4 +1,3 @@
-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Download, FileText } from "lucide-react";
@@ -22,8 +21,7 @@ const formatBoldText = (text: string) => {
   let formattedText = text
     .replace(/\\n/g, '\n')
     .replace(/(\d+\.)/g, '\n$1')
-    // Replace date format dd.mm.yyyy with a non-breaking version
-    .replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '$1.$2.$3');
+    .replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '$1\u2024$2\u2024$3');
   
   const segments = formattedText.split(/(\*\*.*?\*\*)/g);
   
@@ -32,7 +30,7 @@ const formatBoldText = (text: string) => {
       const boldText = segment.slice(2, -2);
       return <span key={index} className="font-semibold whitespace-nowrap">{boldText}</span>;
     }
-    return <span key={index} className="whitespace-pre-wrap">{segment}</span>;
+    return <span key={index} className="whitespace-pre-line break-words">{segment}</span>;
   });
 };
 
