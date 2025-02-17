@@ -82,11 +82,7 @@ export function usePushNotifications() {
                 const token = JSON.stringify(subscription);
                 setPushToken(token);
                 await storeToken(token);
-                
-                toast.success('Successfully registered for web notifications');
               }
-            } else {
-              console.log('Web notification permission denied');
             }
           }
         } catch (error) {
@@ -103,20 +99,29 @@ export function usePushNotifications() {
         return;
       }
 
-      const { error } = await supabase
-        .from('device_tokens')
-        .upsert({
-          user_id: session.session.user.id,
-          token: token,
-        }, {
-          onConflict: 'user_id, token'
-        });
+      try {
+        const { error } = await supabase
+          .from('device_tokens')
+          .upsert(
+            {
+              user_id: session.session.user.id,
+              token: token,
+            },
+            {
+              onConflict: 'user_id,token'
+            }
+          );
 
-      if (error) {
-        console.error('Error storing push token:', error);
-        toast.error('Failed to register for push notifications');
-      } else {
-        toast.success('Successfully registered for push notifications');
+        if (error) {
+          console.error('Error storing push token:', error);
+          toast.error('Failed to register device for notifications');
+        } else {
+          console.log('Successfully stored push token');
+          toast.success('Successfully registered for notifications');
+        }
+      } catch (error) {
+        console.error('Error in storeToken:', error);
+        toast.error('Failed to register device for notifications');
       }
     };
 
