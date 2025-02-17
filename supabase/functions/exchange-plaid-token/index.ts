@@ -14,9 +14,12 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Received request to exchange token');
     const { public_token, user_id, metadata } = await req.json();
+    console.log('Request payload:', { public_token: '***', user_id, metadata });
 
     if (!public_token || !user_id || !metadata) {
+      console.error('Missing required parameters');
       throw new Error('Missing required parameters');
     }
 
@@ -30,32 +33,41 @@ serve(async (req) => {
       },
     });
 
+    console.log('Initializing Plaid client...');
     const plaidClient = new PlaidApi(configuration);
     
-    // Exchange public token for access token
+    console.log('Exchanging public token...');
     const exchangeResponse = await plaidClient.itemPublicTokenExchange({
       public_token: public_token
     });
+    console.log('Exchange successful:', { item_id: exchangeResponse.data.item_id });
 
     const access_token = exchangeResponse.data.access_token;
     const item_id = exchangeResponse.data.item_id;
     
-    // Store access token in Supabase
+    console.log('Initializing Supabase client...');
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { error: insertError } = await supabase
+    console.log('Inserting connection data into database...');
+    const { data, error: insertError } = await supabase
       .from('plaid_connections')
       .insert({
         user_id,
         item_id,
         access_token,
         institution_name: metadata.institution.name,
-      });
+      })
+      .select();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error('Database insertion error:', insertError);
+      throw insertError;
+    }
+
+    console.log('Connection successfully saved:', data);
 
     return new Response(
       JSON.stringify({ success: true }),
