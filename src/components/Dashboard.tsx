@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useNavigate } from "react-router-dom";
 import { TransactionImageDialog } from "./TransactionImageDialog";
 import { PlaidLinkButton } from "./PlaidLinkButton";
+import { Bell } from "lucide-react";
 
 type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
 interface Transaction {
@@ -123,6 +124,34 @@ export function Dashboard() {
     } catch (error) {
       console.error('Error creating test transaction:', error);
       toast.error('Failed to create test transaction');
+    }
+  };
+
+  const sendTestNotification = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error('You must be logged in to send notifications');
+        return;
+      }
+
+      const { error } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          user_id: session.session.user.id,
+          title: 'Test Notification',
+          body: 'This is a test notification. If you see this, push notifications are working!'
+        },
+      });
+
+      if (error) {
+        console.error('Error sending notification:', error);
+        toast.error('Failed to send test notification');
+      } else {
+        toast.success('Test notification sent!');
+      }
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      toast.error('Failed to send test notification');
     }
   };
 
@@ -300,9 +329,10 @@ export function Dashboard() {
         <PlaidLinkButton />
         <Button 
           variant="outline"
-          onClick={createTestTransaction}
+          onClick={sendTestNotification}
           className="w-full max-w-[200px] flex items-center justify-center gap-2"
         >
+          <Bell className="h-4 w-4" />
           Test Notification
         </Button>
         <Button 
