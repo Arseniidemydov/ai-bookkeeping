@@ -18,18 +18,28 @@ interface PushNotificationPayload {
 }
 
 serve(async (req) => {
+  console.log('Function invoked with method:', req.method);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log('Received request:', req.method);
-    
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    console.log('Supabase URL available:', !!supabaseUrl);
+    console.log('Supabase key available:', !!supabaseKey);
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing required environment variables');
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+    // Log request headers for debugging
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
 
     const payload = await req.json() as PushNotificationPayload;
     console.log('Received payload:', payload);
@@ -53,7 +63,7 @@ serve(async (req) => {
     }
 
     const { data: deviceTokens, error: fetchError } = await query;
-    console.log('Device tokens found:', deviceTokens?.length);
+    console.log('Device tokens query result:', { tokens: deviceTokens?.length, error: fetchError });
 
     if (fetchError) {
       console.error('Error fetching tokens:', fetchError);
@@ -72,8 +82,17 @@ serve(async (req) => {
 
     // Configure web push
     const VAPID_PUBLIC_KEY = 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA';
-    const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
+    const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
     
+    if (!VAPID_PRIVATE_KEY) {
+      throw new Error('VAPID_PRIVATE_KEY is not set');
+    }
+
+    console.log('VAPID keys available:', {
+      public: !!VAPID_PUBLIC_KEY,
+      private: !!VAPID_PRIVATE_KEY
+    });
+
     webPush.setVapidDetails(
       'mailto:arsenii.demydov@gmail.com',
       VAPID_PUBLIC_KEY,
@@ -140,8 +159,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in send-push-notification:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: corsHeaders, status: 400 }
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
+      { headers: corsHeaders, status: 500 }
     );
   }
 })
