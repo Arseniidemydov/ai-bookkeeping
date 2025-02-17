@@ -9,29 +9,52 @@ const corsHeaders = {
 }
 
 interface PushNotificationPayload {
-  tokens: string[];
+  user_id?: string; // Optional: to send to specific user
   title: string;
   body: string;
   data?: Record<string, string>;
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
-    const { tokens, title, body, data } = await req.json() as PushNotificationPayload
-    const results = [];
+    const payload = await req.json() as PushNotificationPayload;
+    const { user_id, title, body, data } = payload;
 
-    if (!tokens || tokens.length === 0) {
-      throw new Error('No device tokens provided')
+    if (!title || !body) {
+      throw new Error('Missing required fields: title and body')
     }
+
+    // Query to get device tokens
+    let query = supabaseAdmin
+      .from('device_tokens')
+      .select('token');
+
+    // If user_id is provided, filter for that specific user
+    if (user_id) {
+      query = query.eq('user_id', user_id);
+    }
+
+    const { data: deviceTokens, error: fetchError } = await query;
+
+    if (fetchError) {
+      throw new Error(`Error fetching device tokens: ${fetchError.message}`);
+    }
+
+    if (!deviceTokens || deviceTokens.length === 0) {
+      throw new Error('No device tokens found');
+    }
+
+    console.log(`Found ${deviceTokens.length} device tokens to notify`);
 
     // Configure web push
     webPush.setVapidDetails(
@@ -40,8 +63,10 @@ serve(async (req) => {
       Deno.env.get('VAPID_PRIVATE_KEY') ?? ''
     );
 
+    const results = [];
+
     // Process each token
-    for (const token of tokens) {
+    for (const { token } of deviceTokens) {
       try {
         // Check if the token is a web push subscription (it will be a JSON string)
         if (token.startsWith('{')) {
