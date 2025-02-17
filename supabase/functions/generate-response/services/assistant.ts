@@ -122,7 +122,9 @@ export async function startAssistantRun(threadId: string) {
               "required": [
                 "user_id",
                 "amount",
-                "source"
+                "source",
+                "date",
+                "category"
               ],
               "properties": {
                 "user_id": {
@@ -136,6 +138,14 @@ export async function startAssistantRun(threadId: string) {
                 "source": {
                   "type": "string",
                   "description": "Source of the income (e.g., salary, freelance, etc.)."
+                },
+                "date": {
+                  "type": "string",
+                  "description": "The date of the income in YYYY-MM-DD format."
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Category of the income (e.g., passive, active, investments, etc.)."
                 }
               }
             }

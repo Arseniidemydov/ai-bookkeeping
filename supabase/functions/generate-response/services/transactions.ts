@@ -28,13 +28,19 @@ export async function getTransactionsContext(supabase: any, userId: string) {
   }
 }
 
-export async function addIncomeTransaction(supabase: any, userId: string, amount: number, source: string) {
+export async function addIncomeTransaction(
+  supabase: any, 
+  userId: string, 
+  amount: number, 
+  source: string, 
+  date: string,
+  category: string
+) {
   if (!userId) {
     throw new Error('User ID is required for adding income transaction');
   }
 
   try {
-    const date = new Date().toISOString();
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -42,8 +48,8 @@ export async function addIncomeTransaction(supabase: any, userId: string, amount
         amount: amount,
         type: 'income',
         description: source,
-        category: source,
-        date: date
+        category: category,
+        date: date // Using the date parameter directly since it's already in YYYY-MM-DD format
       }])
       .select()
       .single();
@@ -61,18 +67,23 @@ export async function addIncomeTransaction(supabase: any, userId: string, amount
   }
 }
 
-export async function addExpenseTransaction(supabase: any, userId: string, amount: number, category: string) {
+export async function addExpenseTransaction(
+  supabase: any, 
+  userId: string, 
+  amount: number, 
+  category: string
+) {
   if (!userId) {
     throw new Error('User ID is required for adding expense transaction');
   }
 
   try {
-    const date = new Date().toISOString();
+    const date = new Date().toISOString().split('T')[0]; // Current date in YYYY-MM-DD format
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
         user_id: userId,
-        amount: -Math.abs(amount),
+        amount: -Math.abs(amount), // Ensure expense is negative
         type: 'expense',
         description: category,
         category: category,
