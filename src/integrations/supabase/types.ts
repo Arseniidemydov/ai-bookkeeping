@@ -147,6 +147,7 @@ export type Database = {
           created_at: string | null
           date: string | null
           description: string | null
+          document_page_id: string | null
           id: number
           type: string | null
           user_id: string
@@ -157,6 +158,7 @@ export type Database = {
           created_at?: string | null
           date?: string | null
           description?: string | null
+          document_page_id?: string | null
           id?: number
           type?: string | null
           user_id: string
@@ -167,11 +169,20 @@ export type Database = {
           created_at?: string | null
           date?: string | null
           description?: string | null
+          document_page_id?: string | null
           id?: number
           type?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "transactions_document_page_id_fkey"
+            columns: ["document_page_id"]
+            isOneToOne: false
+            referencedRelation: "document_pages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
