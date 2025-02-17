@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, Link } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -96,6 +96,28 @@ export function Dashboard() {
     } catch (error) {
       toast.error('Failed to delete transaction');
       console.error('Error deleting transaction:', error);
+    }
+  };
+
+  const handleConnectBank = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error("Please sign in to connect your bank account");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('create-plaid-link-token', {
+        body: { user_id: session.session.user.id }
+      });
+
+      if (error) throw error;
+
+      console.log('Got link token:', data.link_token);
+      toast.info("Bank connection feature coming soon!");
+    } catch (error) {
+      console.error('Error creating link token:', error);
+      toast.error("Failed to initiate bank connection");
     }
   };
 
@@ -269,8 +291,20 @@ export function Dashboard() {
           </div>)}
       </div>
 
-      {isExpanded && <div className="mt-auto pt-4 flex justify-center">
-        <Button variant="destructive" onClick={handleLogout} className="w-full max-w-[200px] flex items-center justify-center gap-2">
+      {isExpanded && <div className="mt-auto pt-4 flex justify-center gap-4">
+        <Button 
+          variant="default" 
+          onClick={handleConnectBank} 
+          className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+        >
+          <Link className="w-4 h-4" />
+          Connect Bank Account
+        </Button>
+        <Button 
+          variant="destructive" 
+          onClick={handleLogout} 
+          className="w-full max-w-[200px] flex items-center justify-center gap-2"
+        >
           <LogOut className="w-4 h-4" />
           Log out
         </Button>
