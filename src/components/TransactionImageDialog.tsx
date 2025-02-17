@@ -41,7 +41,7 @@ export function TransactionImageDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl bg-gray-900 border-gray-800">
+      <DialogContent className="max-w-3xl bg-gray-900 border-gray-800 [&>button]:text-gray-400">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <LoadingSpinner />
