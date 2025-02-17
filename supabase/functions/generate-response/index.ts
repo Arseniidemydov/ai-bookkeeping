@@ -15,6 +15,11 @@ import { getPDFImages } from './services/ocr.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+
+if (!openAIApiKey) {
+  throw new Error('OPENAI_API_KEY environment variable is not set');
+}
 
 serve(async (req) => {
   const corsResponse = handleCORS(req);
@@ -75,11 +80,14 @@ serve(async (req) => {
       }
       
       if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
-        throw new Error(`Run failed with status: ${runStatusData.status}`);
+        const error = `Run failed with status: ${runStatusData.status}. Last status data: ${JSON.stringify(runStatusData)}`;
+        console.error(error);
+        throw new Error(error);
       }
       
       if (runStatusData.status === 'requires_action') {
-        await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action);
+        const toolOutputs = await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action);
+        console.log('Tool outputs submitted:', JSON.stringify(toolOutputs));
       }
       
       await new Promise(resolve => setTimeout(resolve, checkInterval));
@@ -102,17 +110,16 @@ async function handleRequiredAction(threadId: string, runId: string, requiredAct
   
   const toolCalls = requiredAction.submit_tool_outputs.tool_calls;
   const toolOutputs = [];
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   for (const toolCall of toolCalls) {
     const functionName = toolCall.function.name;
     const functionArgs = JSON.parse(toolCall.function.arguments);
     
-    let output;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     console.log('Processing function call:', functionName, 'with args:', functionArgs);
 
     try {
+      let output;
       switch (functionName) {
         case 'fetch_user_transactions':
           output = await getTransactionsContext(supabase, functionArgs.user_id);
