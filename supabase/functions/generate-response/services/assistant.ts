@@ -32,7 +32,48 @@ export async function createThread() {
   return thread.id;
 }
 
+async function getActiveRuns(threadId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to get runs: ${response.status} ${errorData}`);
+  }
+
+  const runs = await response.json();
+  return runs.data.filter((run: any) => 
+    ['queued', 'in_progress', 'requires_action'].includes(run.status)
+  );
+}
+
+async function waitForActiveRuns(threadId: string) {
+  const maxAttempts = 10;
+  const delay = 1000;
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    const activeRuns = await getActiveRuns(threadId);
+    if (activeRuns.length === 0) {
+      return;
+    }
+    
+    console.log(`Thread has ${activeRuns.length} active runs. Waiting...`);
+    await sleep(delay);
+    attempts++;
+  }
+
+  throw new Error('Timeout waiting for active runs to complete');
+}
+
 export async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
+  // Wait for any active runs to complete before adding a new message
+  await waitForActiveRuns(threadId);
+
   let messageContent = [];
   
   if (content.trim()) {
@@ -110,7 +151,7 @@ export async function startAssistantRun(threadId: string) {
         body: JSON.stringify({
           assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
           model: 'gpt-4o',
-          temperature: 0.7, // Reduced temperature for more focused responses
+          temperature: 0.7,
           tools: [
             {
               "type": "function",
