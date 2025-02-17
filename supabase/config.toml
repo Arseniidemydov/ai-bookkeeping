@@ -1,7 +1,11 @@
 
-[functions]
+# Project ID from the Supabase dashboard
 project_id = "pqfawxyxvjocxfhsjdec"
 
+[functions.generate-response]
+verify_jwt = false
+
+[storage]
 [[storage.buckets]]
 name = "transaction_attachments"
 public = true
