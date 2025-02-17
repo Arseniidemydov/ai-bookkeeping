@@ -107,6 +107,36 @@ export type Database = {
         }
         Relationships: []
       }
+      plaid_connections: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          id: string
+          institution_name: string | null
+          item_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          id?: string
+          institution_name?: string | null
+          item_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          id?: string
+          institution_name?: string | null
+          item_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           business_description: string | null
