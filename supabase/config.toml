@@ -7,6 +7,9 @@ verify_jwt = true
 [functions.generate-response]
 verify_jwt = false
 
+[functions.simulate-plaid-webhook]
+verify_jwt = false
+
 [storage]
 [storage.buckets]
 [storage.buckets.transaction_attachments]

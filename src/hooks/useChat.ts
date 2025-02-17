@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -159,6 +158,23 @@ export function useChat() {
     },
   });
 
+  const simulateWebhookMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const response = await supabase.functions.invoke('simulate-plaid-webhook', {
+        body: { item_id: itemId }
+      });
+
+      if (response.error) {
+        console.error('Error simulating webhook:', response.error);
+        toast.error("Failed to simulate webhook");
+        throw response.error;
+      }
+
+      toast.success("Webhook simulation completed");
+      return response.data;
+    }
+  });
+
   useEffect(() => {
     if (chatHistory) {
       const formattedMessages = chatHistory.map((msg: any) => ({
@@ -185,6 +201,7 @@ export function useChat() {
     isLoading,
     chatMutation,
     saveMutation,
-    uploadMutation
+    uploadMutation,
+    simulateWebhookMutation
   };
 }
