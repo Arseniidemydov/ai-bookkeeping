@@ -21,16 +21,18 @@ interface ChatMessageProps {
 const formatBoldText = (text: string) => {
   let formattedText = text
     .replace(/\\n/g, '\n')
-    .replace(/(\d+\.)/g, '\n$1');
+    .replace(/(\d+\.)/g, '\n$1')
+    // Replace date format dd.mm.yyyy with a non-breaking version
+    .replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '$1.$2.$3');
   
   const segments = formattedText.split(/(\*\*.*?\*\*)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
       const boldText = segment.slice(2, -2);
-      return <span key={index} className="font-semibold">{boldText}</span>;
+      return <span key={index} className="font-semibold whitespace-nowrap">{boldText}</span>;
     }
-    return <span key={index}>{segment}</span>;
+    return <span key={index} className="whitespace-pre-wrap">{segment}</span>;
   });
 };
 
@@ -126,7 +128,7 @@ export function ChatMessage({ content, sender, file }: ChatMessageProps) {
             )}
           </div>
         )}
-        <div className="text-sm leading-relaxed whitespace-pre-line">
+        <div className="text-sm leading-relaxed">
           {containsHTML && sender === "other" ? (
             <div className="flex flex-col items-start gap-2">
               <div className="flex items-center gap-2 text-white/80">
