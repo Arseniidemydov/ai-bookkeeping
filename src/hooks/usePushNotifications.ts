@@ -3,6 +3,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
 
 export function usePushNotifications() {
   const [pushToken, setPushToken] = useState<string | null>(null);
@@ -10,6 +11,12 @@ export function usePushNotifications() {
 
   useEffect(() => {
     const initializePushNotifications = async () => {
+      // Check if we're running on a native platform
+      if (!Capacitor.isNativePlatform()) {
+        console.log('Push notifications are only available on mobile devices');
+        return;
+      }
+
       try {
         // Check if we have permission
         const permStatus = await PushNotifications.checkPermissions();
@@ -82,7 +89,10 @@ export function usePushNotifications() {
 
       } catch (error) {
         console.error('Error initializing push notifications:', error);
-        toast.error('Failed to initialize push notifications');
+        // Only show error toast on native platforms
+        if (Capacitor.isNativePlatform()) {
+          toast.error('Failed to initialize push notifications');
+        }
       }
     };
 
@@ -90,7 +100,9 @@ export function usePushNotifications() {
 
     // Cleanup listeners
     return () => {
-      PushNotifications.removeAllListeners();
+      if (Capacitor.isNativePlatform()) {
+        PushNotifications.removeAllListeners();
+      }
     };
   }, []);
 
