@@ -31,13 +31,13 @@ export const ChatContainer = () => {
         // Add user message
         const savedUserMessage = await saveMutation.mutateAsync({
           content: `Simulating webhook for Item ID: ${itemId}`,
-          sender: "user",
+          sender: "user" as const,
         });
 
         const userMessage = {
           id: savedUserMessage.id,
           content: savedUserMessage.content,
-          sender: "user",
+          sender: "user" as const,
           timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit"
@@ -51,13 +51,13 @@ export const ChatContainer = () => {
         // Add response message
         const savedResponseMessage = await saveMutation.mutateAsync({
           content: "Webhook simulation completed. Check the Supabase logs for details.",
-          sender: "other",
+          sender: "other" as const,
         });
 
         const responseMessage = {
           id: savedResponseMessage.id,
           content: savedResponseMessage.content,
-          sender: "other",
+          sender: "other" as const,
           timestamp: new Date(savedResponseMessage.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit"
@@ -75,7 +75,7 @@ export const ChatContainer = () => {
       // Add user message
       const savedUserMessage = await saveMutation.mutateAsync({
         content,
-        sender: "user",
+        sender: "user" as const,
         file: fileData
       });
 
@@ -106,7 +106,7 @@ export const ChatContainer = () => {
 
       const savedGptMessage = await saveMutation.mutateAsync({
         content: gptResponse,
-        sender: "other",
+        sender: "other" as const,
       });
 
       const assistantMessage = {
