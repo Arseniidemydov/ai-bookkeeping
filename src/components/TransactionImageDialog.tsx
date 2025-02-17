@@ -1,62 +1,65 @@
 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Image } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadingSpinner } from "./chat/LoadingSpinner";
 
 interface TransactionImageDialogProps {
-  documentPageId?: string | null;
+  isOpen: boolean;
+  onClose: () => void;
+  transactionId: number | null;
 }
 
-export function TransactionImageDialog({ documentPageId }: TransactionImageDialogProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-
-  const handleOpen = async () => {
-    if (!documentPageId) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('document_pages')
-        .select('image_url')
-        .eq('id', documentPageId)
+export function TransactionImageDialog({
+  isOpen,
+  onClose,
+  transactionId,
+}: TransactionImageDialogProps) {
+  const { data: documentPage, isLoading } = useQuery({
+    queryKey: ['transaction-image', transactionId],
+    queryFn: async () => {
+      if (!transactionId) return null;
+      
+      const { data: transaction } = await supabase
+        .from('transactions')
+        .select('document_page_id')
+        .eq('id', transactionId)
         .single();
 
-      if (error) throw error;
-      if (data?.image_url) {
-        setImageUrl(data.image_url);
-        setIsOpen(true);
-      }
-    } catch (error) {
-      console.error('Error fetching image:', error);
-    }
-  };
+      if (!transaction?.document_page_id) return null;
 
-  if (!documentPageId) return null;
+      const { data: page } = await supabase
+        .from('document_pages')
+        .select('image_url')
+        .eq('id', transaction.document_page_id)
+        .single();
+
+      return page;
+    },
+    enabled: !!transactionId,
+  });
 
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleOpen}
-        className="h-8 w-8"
-      >
-        <Image className="h-4 w-4" />
-      </Button>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          {imageUrl && (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl bg-gray-900 border-gray-800">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <LoadingSpinner />
+          </div>
+        ) : documentPage?.image_url ? (
+          <div className="relative aspect-[4/3]">
             <img
-              src={imageUrl}
-              alt="Transaction attachment"
-              className="w-full h-auto rounded-lg"
+              src={documentPage.image_url}
+              alt="Transaction receipt"
+              className="w-full h-full object-contain rounded-lg"
             />
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-64 text-white/60">
+            No image attached to this transaction
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
