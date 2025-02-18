@@ -1,11 +1,18 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import * as webpush from "https://deno.land/x/web_push@v0.3.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface PushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 }
 
 serve(async (req) => {
@@ -47,7 +54,6 @@ serve(async (req) => {
       throw new Error('No device tokens found for user');
     }
 
-    // Configure web push
     const VAPID_PUBLIC_KEY = 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA';
     const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
@@ -55,20 +61,13 @@ serve(async (req) => {
       throw new Error('VAPID_PRIVATE_KEY is not set');
     }
 
-    // Initialize web push with VAPID keys
-    await webpush.setVAPIDDetails(
-      'mailto:test@example.com',
-      VAPID_PUBLIC_KEY,
-      VAPID_PRIVATE_KEY
-    );
-
     const results = [];
     const errors = [];
 
-    // Send notifications
+    // Send notifications using Web Push API directly
     for (const { token } of tokens) {
       try {
-        const subscription = JSON.parse(token);
+        const subscription: PushSubscription = JSON.parse(token);
         
         const pushPayload = JSON.stringify({
           title,
@@ -76,7 +75,19 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
 
-        await webpush.sendNotification(subscription, pushPayload);
+        const response = await fetch(subscription.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${VAPID_PRIVATE_KEY}`
+          },
+          body: pushPayload
+        });
+
+        if (!response.ok) {
+          throw new Error(`Push service responded with ${response.status}`);
+        }
+
         results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
         console.error('Failed to send notification:', error);
@@ -84,6 +95,19 @@ serve(async (req) => {
           error: error.message,
           subscription: token ? JSON.parse(token).endpoint : 'unknown'
         });
+
+        // If token is invalid, consider removing it
+        if (error.message.includes('410') || error.message.includes('404')) {
+          try {
+            await supabase
+              .from('device_tokens')
+              .delete()
+              .eq('token', token);
+            console.log('Removed invalid token:', token);
+          } catch (deleteError) {
+            console.error('Failed to remove invalid token:', deleteError);
+          }
+        }
       }
     }
 
