@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import webpush from "https://esm.sh/web-push@3.6.1"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import { setVapidDetails, sendNotification } from 'https://esm.sh/web-push@3.6.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,16 +55,11 @@ serve(async (req) => {
       throw new Error('VAPID_PRIVATE_KEY is not set');
     }
 
-    try {
-      setVapidDetails(
-        'mailto:test@example.com',
-        VAPID_PUBLIC_KEY,
-        VAPID_PRIVATE_KEY
-      );
-    } catch (error) {
-      console.error('Failed to set VAPID details:', error);
-      throw new Error(`Failed to initialize web push: ${error.message}`);
-    }
+    webpush.setVapidDetails(
+      'mailto:test@example.com',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
 
     const results = [];
     const errors = [];
@@ -80,7 +75,7 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
 
-        await sendNotification(subscription, pushPayload);
+        await webpush.sendNotification(subscription, pushPayload);
         results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
         console.error('Failed to send notification:', error);
@@ -104,7 +99,12 @@ serve(async (req) => {
         errors: errors.length > 0 ? errors : undefined,
         timestamp: new Date().toISOString()
       }),
-      { headers: { ...corsHeaders } }
+      { 
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders 
+        } 
+      }
     );
 
   } catch (error) {
@@ -117,7 +117,10 @@ serve(async (req) => {
         timestamp: new Date().toISOString()
       }),
       { 
-        headers: corsHeaders,
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders 
+        },
         status: 500
       }
     );
