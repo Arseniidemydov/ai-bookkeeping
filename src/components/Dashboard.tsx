@@ -131,16 +131,12 @@ export function Dashboard() {
     try {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) {
-        console.error('No active session found');
         toast.error('You must be logged in to send notifications');
         return;
       }
 
       console.log('Starting test notification request...');
-      console.log('Session info:', {
-        userId: session.session.user.id,
-        timestamp: new Date().toISOString()
-      });
+      console.log('User ID:', session.session.user.id);
 
       const { data, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
@@ -149,10 +145,6 @@ export function Dashboard() {
           body: 'This is a test notification',
           timestamp: new Date().toISOString()
         },
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.session.access_token}`
-        }
       });
 
       console.log('Response:', { data, error });
@@ -162,36 +154,20 @@ export function Dashboard() {
           message: error.message,
           name: error.name,
           stack: error.stack,
-          context: error,
-          statusCode: error.status,
-          statusText: error.statusText
+          context: error
         });
-        
-        if (error.message.includes('Failed to send')) {
-          toast.error('Network error: Could not reach the notification service');
-        } else if (error.status === 401) {
-          toast.error('Authentication error: Please try logging in again');
-        } else {
-          toast.error(`Failed to send test notification: ${error.message}`);
-        }
+        toast.error('Failed to send test notification');
         return;
       }
 
-      if (data?.success) {
-        console.log('Notification sent successfully:', data);
-        toast.success('Test notification sent successfully!');
-      } else {
-        console.warn('Unexpected response format:', data);
-        toast.warning('Notification service responded but status unclear');
-      }
+      toast.success('Test notification sent successfully!');
     } catch (error) {
       console.error('Caught error:', {
         error,
         message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        type: error instanceof Error ? error.constructor.name : typeof error
+        stack: error instanceof Error ? error.stack : undefined
       });
-      toast.error('Failed to send test notification. Check console for details.');
+      toast.error('Failed to send test notification');
     }
   };
 

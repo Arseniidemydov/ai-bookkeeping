@@ -45,38 +45,6 @@ export const ChatContainer = () => {
         };
         setMessages(prev => [...prev, userMessage]);
 
-        // Send notification about webhook simulation
-        try {
-          const notificationData = {
-            user_id: session.session.user.id,
-            title: 'Webhook Simulation',
-            body: `Simulating webhook for Item ID: ${itemId}`
-          };
-
-          console.log('Preparing to send notification with data:', notificationData);
-
-          const response = await supabase.functions.invoke(
-            'send-push-notification',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: notificationData // Remove JSON.stringify, let supabase handle it
-            }
-          );
-
-          console.log('Notification response:', response);
-
-          if (response.error) {
-            console.error('Error sending notification:', response.error);
-            toast.error('Failed to send notification');
-          } else {
-            console.log('Notification sent successfully:', response.data);
-          }
-        } catch (error) {
-          console.error('Error sending notification:', error);
-          toast.error('Failed to send notification');
-        }
-
         // Simulate webhook
         await simulateWebhookMutation.mutateAsync(itemId);
 

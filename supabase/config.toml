@@ -1,19 +1,21 @@
 
 project_id = "pqfawxyxvjocxfhsjdec"
 
-[api]
-schemas = ["public", "storage", "graphql_public"]
-
-[auth]
-enabled = true
-
-[realtime]
-enabled = true
-
-[storage]
-enabled = true
-
-[functions]
-[functions.send-push-notification]
+[functions.create-plaid-link-token]
 verify_jwt = true
 
+[functions.generate-response]
+verify_jwt = false
+
+[functions.simulate-plaid-webhook]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[storage]
+[storage.buckets]
+[storage.buckets.transaction_attachments]
+public = true
+file_size_limit = "10MB"
+allowed_mime_types = ["image/*"]
