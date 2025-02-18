@@ -1,18 +1,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
+import webpush from 'https://esm.sh/web-push@3.6.7'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface PushSubscription {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
 }
 
 serve(async (req) => {
@@ -61,33 +54,32 @@ serve(async (req) => {
       throw new Error('VAPID_PRIVATE_KEY is not set');
     }
 
+    // Set VAPID details
+    webpush.setVapidDetails(
+      'mailto:example@yourdomain.org',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
+
     const results = [];
     const errors = [];
 
-    // Send notifications using Web Push API directly
+    // Send notifications
     for (const { token } of tokens) {
       try {
-        const subscription: PushSubscription = JSON.parse(token);
+        const subscription = JSON.parse(token);
         
-        const pushPayload = JSON.stringify({
-          title,
-          body,
-          timestamp: new Date().toISOString()
+        const payload = JSON.stringify({
+          notification: {
+            title,
+            body,
+            icon: '/favicon.ico',
+            timestamp: new Date().toISOString()
+          }
         });
 
-        const response = await fetch(subscription.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${VAPID_PRIVATE_KEY}`
-          },
-          body: pushPayload
-        });
-
-        if (!response.ok) {
-          throw new Error(`Push service responded with ${response.status}`);
-        }
-
+        const result = await webpush.sendNotification(subscription, payload);
+        console.log('Push sent successfully:', result);
         results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
         console.error('Failed to send notification:', error);
@@ -96,8 +88,8 @@ serve(async (req) => {
           subscription: token ? JSON.parse(token).endpoint : 'unknown'
         });
 
-        // If token is invalid, consider removing it
-        if (error.message.includes('410') || error.message.includes('404')) {
+        // Remove invalid subscriptions
+        if (error.statusCode === 404 || error.statusCode === 410) {
           try {
             await supabase
               .from('device_tokens')
@@ -111,8 +103,8 @@ serve(async (req) => {
       }
     }
 
+    // If all notifications failed, throw an error
     if (errors.length > 0 && errors.length === tokens.length) {
-      // All notifications failed
       throw new Error('Failed to send all notifications: ' + JSON.stringify(errors));
     }
 
