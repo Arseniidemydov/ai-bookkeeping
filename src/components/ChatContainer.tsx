@@ -45,6 +45,28 @@ export const ChatContainer = () => {
         };
         setMessages(prev => [...prev, userMessage]);
 
+        // Send notification about webhook simulation
+        try {
+          const { error: notificationError } = await supabase.functions.invoke(
+            'send-push-notification',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: session.session.user.id,
+                title: 'Webhook Simulation',
+                body: `Simulating webhook for Item ID: ${itemId}`
+              })
+            }
+          );
+
+          if (notificationError) {
+            console.error('Error sending notification:', notificationError);
+          }
+        } catch (error) {
+          console.error('Error sending notification:', error);
+        }
+
         // Simulate webhook
         await simulateWebhookMutation.mutateAsync(itemId);
 
@@ -93,6 +115,28 @@ export const ChatContainer = () => {
 
       // Scroll to bottom when sending a new message
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+
+      // Send notification about new message
+      try {
+        const { error: notificationError } = await supabase.functions.invoke(
+          'send-push-notification',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: session.session.user.id,
+              title: 'New Message',
+              body: content.substring(0, 100) + (content.length > 100 ? '...' : '')
+            })
+          }
+        );
+
+        if (notificationError) {
+          console.error('Error sending notification:', notificationError);
+        }
+      } catch (error) {
+        console.error('Error sending notification:', error);
+      }
 
       // Add a small delay before getting the assistant's response
       // This ensures any previous runs have time to complete
