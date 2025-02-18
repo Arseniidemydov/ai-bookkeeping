@@ -59,6 +59,10 @@ serve(async (req) => {
       user_id: '[REDACTED]'
     });
 
+    if (!payload.token) {
+      throw new Error('No token provided');
+    }
+
     // Check if this is a web push subscription token
     let isWebPush = false;
     try {
@@ -81,13 +85,17 @@ serve(async (req) => {
       if (fcmEndpoint.includes('fcm.googleapis.com')) {
         const fcmToken = fcmEndpoint.split('/').pop();
         
-        console.log('Sending web push notification with token:', fcmToken?.substring(0, 10) + '...');
+        if (!fcmToken) {
+          throw new Error('Invalid FCM token extracted from endpoint');
+        }
+
+        console.log('Sending web push notification with token:', fcmToken.substring(0, 10) + '...');
         
         const message = {
           token: fcmToken,
           notification: {
-            title: payload.title,
-            body: payload.body
+            title: payload.title || 'New Notification',
+            body: payload.body || ''
           },
           webpush: {
             notification: {
@@ -98,8 +106,18 @@ serve(async (req) => {
           }
         };
 
-        await messaging.send(message);
-        console.log('Web push notification sent successfully');
+        try {
+          await messaging.send(message);
+          console.log('Web push notification sent successfully');
+        } catch (error) {
+          if (error.code === 'messaging/registration-token-not-registered') {
+            // Token is invalid or no longer registered
+            console.log('Token is invalid or expired, should be removed from database');
+            // Here you could make a call to your database to remove this token
+            throw new Error('Push notification token is no longer valid');
+          }
+          throw error;
+        }
       }
     } else {
       // For native apps
@@ -108,8 +126,8 @@ serve(async (req) => {
       const message = {
         token: payload.token,
         notification: {
-          title: payload.title,
-          body: payload.body
+          title: payload.title || 'New Notification',
+          body: payload.body || ''
         },
         android: {
           notification: {
@@ -126,9 +144,19 @@ serve(async (req) => {
         }
       };
 
-      console.log('Sending native push notification...');
-      await messaging.send(message);
-      console.log('Native push notification sent successfully');
+      try {
+        console.log('Sending native push notification...');
+        await messaging.send(message);
+        console.log('Native push notification sent successfully');
+      } catch (error) {
+        if (error.code === 'messaging/registration-token-not-registered') {
+          // Token is invalid or no longer registered
+          console.log('Token is invalid or expired, should be removed from database');
+          // Here you could make a call to your database to remove this token
+          throw new Error('Push notification token is no longer valid');
+        }
+        throw error;
+      }
     }
 
     return new Response(
@@ -153,6 +181,7 @@ serve(async (req) => {
       message: error.message
     });
     
+    // Return a more detailed error response
     return new Response(
       JSON.stringify({ 
         error: error.message,

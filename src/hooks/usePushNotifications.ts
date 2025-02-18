@@ -108,25 +108,44 @@ export function usePushNotifications() {
       }
 
       try {
-        console.log('Storing token for user:', session.session.user.id);
-        const { error } = await supabase
+        // First, check if the token is already stored
+        const { data: existingTokens } = await supabase
           .from('device_tokens')
-          .upsert(
-            {
+          .select('*')
+          .eq('user_id', session.session.user.id)
+          .eq('token', token);
+
+        // Only store if token doesn't exist
+        if (!existingTokens || existingTokens.length === 0) {
+          console.log('Storing new token for user:', session.session.user.id);
+          const { error } = await supabase
+            .from('device_tokens')
+            .insert({
               user_id: session.session.user.id,
               token: token,
-            },
-            {
-              onConflict: 'user_id,token'
-            }
-          );
+              last_used: new Date().toISOString()
+            });
 
-        if (error) {
-          console.error('Error storing push token:', error);
-          toast.error('Failed to register device for notifications');
+          if (error) {
+            console.error('Error storing push token:', error);
+            toast.error('Failed to register device for notifications');
+          } else {
+            console.log('Successfully stored push token');
+            toast.success('Successfully registered for notifications');
+          }
         } else {
-          console.log('Successfully stored push token');
-          toast.success('Successfully registered for notifications');
+          // Update last_used timestamp for existing token
+          const { error } = await supabase
+            .from('device_tokens')
+            .update({ last_used: new Date().toISOString() })
+            .eq('user_id', session.session.user.id)
+            .eq('token', token);
+
+          if (error) {
+            console.error('Error updating token timestamp:', error);
+          } else {
+            console.log('Successfully updated token timestamp');
+          }
         }
       } catch (error) {
         console.error('Error in storeToken:', error);
