@@ -11,28 +11,58 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('Function invoked with method:', req.method);
-  
+  // Log request details
+  console.log('Request received:', {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
+  });
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { user_id, title, body } = await req.json();
-    console.log('Processing notification for user:', user_id);
+    // Validate request method
+    if (req.method !== 'POST') {
+      throw new Error(`Invalid method: ${req.method}`);
+    }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+    // Parse request body
+    const requestData = await req.json().catch(err => {
+      console.error('Failed to parse request body:', err);
+      throw new Error('Invalid request body');
+    });
+
+    console.log('Request data:', {
+      ...requestData,
+      user_id: '[REDACTED]' // Don't log sensitive data
+    });
+
+    const { user_id, title, body } = requestData;
+
+    if (!user_id || !title || !body) {
+      throw new Error('Missing required fields: user_id, title, or body');
+    }
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase configuration');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user's device token
+    // Get user's device tokens
     const { data: tokens, error: tokenError } = await supabase
       .from('device_tokens')
       .select('token')
       .eq('user_id', user_id);
 
     if (tokenError) {
+      console.error('Database error:', tokenError);
       throw new Error(`Failed to fetch device tokens: ${tokenError.message}`);
     }
 
@@ -58,12 +88,15 @@ serve(async (req) => {
 
     const results = [];
 
-    // Send to all user's devices
+    // Send notifications
     for (const { token } of tokens) {
       try {
         const subscription = JSON.parse(token);
-        console.log('Sending push notification to subscription:', subscription);
-        
+        console.log('Processing subscription:', {
+          endpoint: subscription.endpoint,
+          keys: subscription.keys ? '[PRESENT]' : '[MISSING]'
+        });
+
         const pushPayload = JSON.stringify({
           title,
           body,
@@ -79,26 +112,38 @@ serve(async (req) => {
       }
     }
 
+    const response = {
+      success: true,
+      message: 'Push notifications processed',
+      results,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('Sending response:', response);
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Push notifications processed',
-        results
-      }),
-      { headers: corsHeaders }
+      JSON.stringify(response),
+      { 
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'no-store'
+        }
+      }
     );
 
   } catch (error) {
     console.error('Error in send-push-notification:', error);
+    
     return new Response(
       JSON.stringify({ 
         success: false,
         error: error.message,
-        stack: error.stack 
+        stack: error.stack,
+        timestamp: new Date().toISOString()
       }),
       { 
         headers: corsHeaders,
-        status: 500 
+        status: error.status || 500
       }
     );
   }
