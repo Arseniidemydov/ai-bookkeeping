@@ -1,11 +1,11 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -13,65 +13,65 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting webhook simulation...');
-    const { item_id } = await req.json();
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    if (!item_id) {
-      throw new Error('Missing item_id parameter');
+    // First, get the Plaid connection for this user
+    const { data: connection, error: connectionError } = await supabase
+      .from('plaid_connections')
+      .select('item_id')
+      .eq('user_id', 'AaxNjwj6JxhBDlWd58wxuXAKKnlQXqC16rmwk')
+      .single();
+
+    if (connectionError || !connection) {
+      console.error('Error fetching Plaid connection:', connectionError);
+      throw new Error('No Plaid connection found for this user');
     }
 
-    console.log('Simulating webhook for item_id:', item_id);
-
-    // Create webhook payload that mimics Plaid's webhook
+    // Create a simulated webhook payload
     const webhookPayload = {
       webhook_type: "TRANSACTIONS",
       webhook_code: "SYNC_UPDATES_AVAILABLE",
-      item_id: item_id,
+      item_id: connection.item_id,
       initial_update_complete: true,
-      historical_update_complete: true,
-      environment: "sandbox"
+      historical_update_complete: true
     };
 
-    // Send the webhook to our transaction webhook endpoint
-    const response = await fetch(
-      `${Deno.env.get('SUPABASE_URL')}/functions/v1/transaction-webhook`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-        },
-        body: JSON.stringify(webhookPayload)
-      }
-    );
+    // Call the plaid-webhook function directly
+    const { error: webhookError } = await supabase.functions.invoke('plaid-webhook', {
+      body: webhookPayload
+    });
 
-    const result = await response.text();
-    console.log('Webhook simulation response:', result);
+    if (webhookError) {
+      throw webhookError;
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Webhook simulation completed',
-        result 
+        message: 'Webhook simulation completed successfully',
+        webhook_payload: webhookPayload
       }),
       { 
-        headers: { 
+        headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
-      }
+          'Content-Type': 'application/json',
+        },
+      },
     );
   } catch (error) {
-    console.error('Error in webhook simulation:', error);
+    console.error('Error simulating webhook:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 400,
-        headers: { 
+        headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
-      }
+          'Content-Type': 'application/json',
+        },
+      },
     );
   }
 });
