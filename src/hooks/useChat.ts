@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -159,9 +160,10 @@ export function useChat() {
   });
 
   const simulateWebhookMutation = useMutation({
-    mutationFn: async (itemId: string) => {
+    mutationFn: async () => {
+      console.log('Simulating Plaid webhook...');
       const response = await supabase.functions.invoke('simulate-plaid-webhook', {
-        body: { item_id: itemId }
+        body: {}
       });
 
       if (response.error) {
