@@ -1,14 +1,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-// Note: using a specific version and importing only what we need
 import { setVapidDetails, sendNotification } from 'https://esm.sh/web-push@3.6.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
 }
 
 serve(async (req) => {
@@ -18,11 +15,6 @@ serve(async (req) => {
   }
 
   try {
-    // Validate request method
-    if (req.method !== 'POST') {
-      throw new Error(`Invalid method: ${req.method}`);
-    }
-
     // Parse request body
     const requestData = await req.json();
     const { user_id, title, body } = requestData;
