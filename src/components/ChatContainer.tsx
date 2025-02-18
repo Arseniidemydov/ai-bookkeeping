@@ -48,7 +48,6 @@ export const ChatContainer = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
       // Add a small delay before getting the assistant's response
-      // This ensures any previous runs have time to complete
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Get assistant's response
@@ -70,6 +69,7 @@ export const ChatContainer = () => {
           hour: "2-digit",
           minute: "2-digit"
         }),
+        file: undefined
       };
       setMessages(prev => [...prev, assistantMessage]);
       
