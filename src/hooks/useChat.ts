@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +17,8 @@ interface Message {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // Increased to 2 seconds
+const RETRY_DELAY = 2000;
+const INITIAL_RETRY_DELAY = 1000;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -56,11 +58,11 @@ export function useChat() {
       }
 
       let lastError;
-      let retries = 0;
+      let currentDelay = INITIAL_RETRY_DELAY;
 
-      while (retries < MAX_RETRIES) {
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          console.log(`Attempt ${retries + 1} to send message...`);
+          console.log(`Attempt ${attempt} to send message...`);
           
           const response = await supabase.functions.invoke('generate-response', {
             body: { 
@@ -83,16 +85,16 @@ export function useChat() {
           return response.data.generatedText;
         } catch (error) {
           lastError = error;
-          retries++;
-          console.error(`Attempt ${retries} failed:`, error);
+          console.error(`Attempt ${attempt} failed:`, error);
           
-          if (retries === MAX_RETRIES) {
+          if (attempt === MAX_RETRIES) {
             toast.error("Failed to get response. Please try again.");
             throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
-          // Wait before retrying with exponential backoff
-          await delay(RETRY_DELAY * Math.pow(2, retries - 1));
+          // Exponential backoff with initial delay
+          await delay(currentDelay);
+          currentDelay *= 2; // Double the delay for next attempt
         }
       }
 
