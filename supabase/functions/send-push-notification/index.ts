@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import * as webPush from 'https://esm.sh/web-push@3.6.1'
+import webPush from 'https://esm.sh/web-push@3.6.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,13 +11,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Log request details
-  console.log('Request received:', {
-    method: req.method,
-    url: req.url,
-    headers: Object.fromEntries(req.headers.entries())
-  });
-
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -29,16 +23,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const requestData = await req.json().catch(err => {
-      console.error('Failed to parse request body:', err);
-      throw new Error('Invalid request body');
-    });
-
-    console.log('Request data:', {
-      ...requestData,
-      user_id: '[REDACTED]' // Don't log sensitive data
-    });
-
+    const requestData = await req.json();
     const { user_id, title, body } = requestData;
 
     if (!user_id || !title || !body) {
@@ -62,15 +47,12 @@ serve(async (req) => {
       .eq('user_id', user_id);
 
     if (tokenError) {
-      console.error('Database error:', tokenError);
       throw new Error(`Failed to fetch device tokens: ${tokenError.message}`);
     }
 
     if (!tokens || tokens.length === 0) {
       throw new Error('No device tokens found for user');
     }
-
-    console.log(`Found ${tokens.length} device tokens`);
 
     // Configure web push
     const VAPID_PUBLIC_KEY = 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA';
@@ -80,23 +62,25 @@ serve(async (req) => {
       throw new Error('VAPID_PRIVATE_KEY is not set');
     }
 
-    webPush.setVapidDetails(
-      'mailto:test@example.com',
-      VAPID_PUBLIC_KEY,
-      VAPID_PRIVATE_KEY
-    );
+    try {
+      webPush.setVapidDetails(
+        'mailto:test@example.com',
+        VAPID_PUBLIC_KEY,
+        VAPID_PRIVATE_KEY
+      );
+    } catch (error) {
+      console.error('Failed to set VAPID details:', error);
+      throw new Error(`Failed to initialize web push: ${error.message}`);
+    }
 
     const results = [];
+    const errors = [];
 
     // Send notifications
     for (const { token } of tokens) {
       try {
         const subscription = JSON.parse(token);
-        console.log('Processing subscription:', {
-          endpoint: subscription.endpoint,
-          keys: subscription.keys ? '[PRESENT]' : '[MISSING]'
-        });
-
+        
         const pushPayload = JSON.stringify({
           title,
           body,
@@ -104,46 +88,44 @@ serve(async (req) => {
         });
 
         await webPush.sendNotification(subscription, pushPayload);
-        console.log('Push notification sent successfully');
-        results.push({ success: true });
+        results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
-        console.error('Error sending push notification:', error);
-        results.push({ success: false, error: error.message });
+        console.error('Failed to send notification:', error);
+        errors.push({
+          error: error.message,
+          subscription: token ? JSON.parse(token).endpoint : 'unknown'
+        });
       }
     }
 
-    const response = {
-      success: true,
-      message: 'Push notifications processed',
-      results,
-      timestamp: new Date().toISOString()
-    };
-
-    console.log('Sending response:', response);
+    if (errors.length > 0 && errors.length === tokens.length) {
+      // All notifications failed
+      throw new Error('Failed to send all notifications: ' + JSON.stringify(errors));
+    }
 
     return new Response(
-      JSON.stringify(response),
-      { 
-        headers: {
-          ...corsHeaders,
-          'Cache-Control': 'no-store'
-        }
-      }
+      JSON.stringify({
+        success: true,
+        message: 'Push notifications processed',
+        results,
+        errors: errors.length > 0 ? errors : undefined,
+        timestamp: new Date().toISOString()
+      }),
+      { headers: { ...corsHeaders } }
     );
 
   } catch (error) {
     console.error('Error in send-push-notification:', error);
     
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
         error: error.message,
-        stack: error.stack,
         timestamp: new Date().toISOString()
       }),
       { 
         headers: corsHeaders,
-        status: error.status || 500
+        status: 500
       }
     );
   }
