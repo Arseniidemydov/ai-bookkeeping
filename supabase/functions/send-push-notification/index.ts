@@ -69,19 +69,32 @@ function extractFCMToken(rawToken: string): string | null {
   try {
     const token = parseToken(rawToken);
     console.log('Token type:', typeof token);
+    console.log('Token value:', typeof token === 'object' ? JSON.stringify(token) : token);
 
     // If it's a web push subscription object
     if (typeof token === 'object' && token !== null) {
       console.log('Processing web push subscription');
-      if (token.endpoint?.includes('fcm.googleapis.com/fcm/send')) {
-        const fcmToken = token.endpoint.split('/').pop();
-        console.log('Extracted FCM token from endpoint:', fcmToken);
-        return fcmToken || null;
+      
+      // Look for FCM endpoint
+      if (token.endpoint) {
+        console.log('Subscription endpoint:', token.endpoint);
+        if (token.endpoint.includes('fcm.googleapis.com/fcm/send')) {
+          const fcmToken = token.endpoint.split('/').pop();
+          console.log('Extracted FCM token from endpoint:', fcmToken);
+          return fcmToken || null;
+        }
       }
-      // For web push, we need the auth token
+
+      // Look for auth key in web push subscription
       if (token.keys?.auth) {
-        console.log('Using auth token from web push subscription');
+        console.log('Found auth key in subscription');
         return token.keys.auth;
+      }
+
+      // Look for FCM token in p256dh key
+      if (token.keys?.p256dh) {
+        console.log('Using p256dh as token');
+        return token.keys.p256dh;
       }
     }
 
@@ -175,7 +188,7 @@ serve(async (req) => {
             code: 'TOKEN_INVALID',
             message: 'Push notification token needs to be refreshed'
           }),
-          { headers: corsHeaders }
+          { headers: corsHeaders, status: 400 }
         );
       }
       
@@ -190,7 +203,7 @@ serve(async (req) => {
         code: error.errorInfo?.code || 'UNKNOWN_ERROR',
         message: 'Failed to send push notification'
       }),
-      { headers: corsHeaders }
+      { headers: corsHeaders, status: 500 }
     );
   }
 });
