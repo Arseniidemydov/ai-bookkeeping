@@ -6,7 +6,8 @@ verify_jwt = false
 
 [storage]
 [storage.buckets]
-[storage.buckets.transaction_attachments]
+[storage.buckets.chat_files]
 public = true
 file_size_limit = "10MB"
 allowed_mime_types = ["image/*"]
+

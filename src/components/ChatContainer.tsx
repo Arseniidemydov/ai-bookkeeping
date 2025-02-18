@@ -22,62 +22,81 @@ export const ChatContainer = () => {
 
       let fileData;
       if (file) {
-        fileData = await uploadMutation.mutateAsync(file);
+        try {
+          fileData = await uploadMutation.mutateAsync(file);
+        } catch (error) {
+          console.error("Error uploading file:", error);
+          toast.error("Failed to upload file. Please try again.");
+          return;
+        }
       }
 
       // Add user message
-      const savedUserMessage = await saveMutation.mutateAsync({
-        content,
-        sender: "user",
-        file: fileData
-      });
+      try {
+        const savedUserMessage = await saveMutation.mutateAsync({
+          content,
+          sender: "user",
+          file: fileData
+        });
 
-      const userMessage = {
-        id: savedUserMessage.id,
-        content: savedUserMessage.content,
-        sender: savedUserMessage.sender as "user" | "other",
-        timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
-        file: fileData
-      };
-      setMessages(prev => [...prev, userMessage]);
+        const userMessage = {
+          id: savedUserMessage.id,
+          content: savedUserMessage.content,
+          sender: savedUserMessage.sender as "user" | "other",
+          timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          }),
+          file: fileData
+        };
+        setMessages(prev => [...prev, userMessage]);
 
-      // Scroll to bottom when sending a new message
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        // Scroll to bottom when sending a new message
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
-      // Add a small delay before getting the assistant's response
-      // This ensures any previous runs have time to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        // Add a small delay before getting the assistant's response
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Get assistant's response
-      const gptResponse = await chatMutation.mutateAsync({
-        message: content,
-        fileUrl: fileData?.url
-      });
+        try {
+          // Get assistant's response
+          const gptResponse = await chatMutation.mutateAsync({
+            message: content,
+            fileUrl: fileData?.url
+          });
 
-      const savedGptMessage = await saveMutation.mutateAsync({
-        content: gptResponse,
-        sender: "other",
-      });
+          const savedGptMessage = await saveMutation.mutateAsync({
+            content: gptResponse,
+            sender: "other",
+          });
 
-      const assistantMessage = {
-        id: savedGptMessage.id,
-        content: savedGptMessage.content,
-        sender: savedGptMessage.sender as "user" | "other",
-        timestamp: new Date(savedGptMessage.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      
-      // Scroll to bottom after receiving response
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          const assistantMessage = {
+            id: savedGptMessage.id,
+            content: savedGptMessage.content,
+            sender: savedGptMessage.sender as "user" | "other",
+            timestamp: new Date(savedGptMessage.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit"
+            }),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+          
+          // Scroll to bottom after receiving response
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        } catch (error) {
+          console.error("Error getting AI response:", error);
+          toast.error("Failed to get AI response. Please try again in a moment.");
+        }
+      } catch (error) {
+        console.error("Error saving message:", error);
+        toast.error("Failed to save message. Please try again.");
+      }
     } catch (error) {
       console.error("Error in chat flow:", error);
-      toast.error("Failed to process message. Please try again.");
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        toast.error("Connection error. Please check your internet connection and try again.");
+      } else {
+        toast.error("Failed to process message. Please try again.");
+      }
     }
   };
 
