@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import * as webPush from "https://esm.sh/web-push@3.6.6";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,50 +23,83 @@ serve(async (req) => {
       user_id: '[REDACTED]' // Don't log sensitive data
     });
 
-    // Set VAPID details
-    webPush.setVapidDetails(
-      'mailto:your-email@example.com', // Replace with your email
-      'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA',
-      Deno.env.get('VAPID_PRIVATE_KEY') ?? ''
-    );
-
-    // Parse the subscription from the token
-    let subscription;
+    // Check if this is a web push subscription token
+    let isWebPush = false;
     try {
-      subscription = JSON.parse(payload.token);
-    } catch (error) {
-      console.error('Error parsing subscription:', error);
-      throw new Error('Invalid subscription format');
+      const tokenObj = JSON.parse(payload.token);
+      isWebPush = !!(tokenObj.endpoint && tokenObj.keys);
+    } catch (e) {
+      isWebPush = false;
     }
 
-    console.log('Sending notification to subscription:', {
-      endpoint: subscription.endpoint,
-      // Don't log the full keys for security
-      keys: subscription.keys ? { 
-        p256dh: subscription.keys.p256dh?.substring(0, 10) + '...',
-        auth: subscription.keys.auth?.substring(0, 10) + '...'
-      } : 'No keys'
-    });
+    if (isWebPush) {
+      // For web push, use Firebase Cloud Messaging (FCM)
+      const subscription = JSON.parse(payload.token);
+      const fcmEndpoint = subscription.endpoint;
+      
+      if (fcmEndpoint.includes('fcm.googleapis.com')) {
+        // Extract FCM token from endpoint
+        const fcmToken = fcmEndpoint.split('/').pop();
+        
+        const fcmPayload = {
+          message: {
+            token: fcmToken,
+            notification: {
+              title: payload.title,
+              body: payload.body
+            },
+            webpush: {
+              notification: {
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                timestamp: new Date().getTime()
+              }
+            }
+          }
+        };
 
-    // Prepare the notification payload
-    const notificationPayload = JSON.stringify({
-      title: payload.title,
-      body: payload.body,
-      icon: '/favicon.ico', // You can customize this
-      badge: '/favicon.ico',
-      timestamp: new Date().getTime()
-    });
+        const fcmResponse = await fetch('https://fcm.googleapis.com/v1/projects/your-project-id/messages:send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('FCM_SERVER_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(fcmPayload)
+        });
 
-    // Send the notification
-    const pushResult = await webPush.sendNotification(
-      subscription,
-      notificationPayload
-    );
+        if (!fcmResponse.ok) {
+          throw new Error(`FCM request failed: ${await fcmResponse.text()}`);
+        }
 
-    console.log('Push notification sent successfully:', {
-      statusCode: pushResult.statusCode,
-      body: pushResult.body
-    });
+        console.log('FCM notification sent successfully');
+      }
+    } else {
+      // For native apps, use direct FCM
+      const fcmPayload = {
+        to: payload.token,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          sound: 'default'
+        },
+        priority: 'high'
+      };
+
+      const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `key=${Deno.env.get('FCM_SERVER_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(fcmPayload)
+      });
+
+      if (!fcmResponse.ok) {
+        throw new Error(`FCM request failed: ${await fcmResponse.text()}`);
+      }
+
+      console.log('Native FCM notification sent successfully');
+    }
 
     return new Response(
       JSON.stringify({ 
