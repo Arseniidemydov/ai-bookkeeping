@@ -292,15 +292,18 @@ export function Dashboard() {
       }
 
       const response = await supabase.functions.invoke('simulate-plaid-webhook', {
-        body: {},
+        body: {}
       });
 
       if (response.error) {
         console.error('Error simulating webhook:', response.error);
-        toast.error(response.error.message || "Failed to simulate webhook");
+        const errorMessage = response.error.message || 
+                           (typeof response.error === 'string' ? response.error : "Failed to simulate webhook");
+        toast.error(errorMessage);
         throw response.error;
       }
 
+      console.log('Webhook simulation response:', response);
       toast.success("Webhook simulation completed");
       return response.data;
     }

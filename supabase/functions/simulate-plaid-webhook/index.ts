@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -21,7 +22,16 @@ serve(async (req) => {
     // Get the user ID from the request JWT
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { 
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
@@ -30,7 +40,16 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error('Auth error:', userError);
-      throw new Error('Unauthorized');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
 
     console.log('Looking up Plaid connection for user:', user.id);
@@ -44,7 +63,16 @@ serve(async (req) => {
 
     if (connectionError || !connection) {
       console.error('Error fetching Plaid connection:', connectionError);
-      throw new Error('No Plaid connection found for this user');
+      return new Response(
+        JSON.stringify({ error: 'No Plaid connection found for this user' }),
+        { 
+          status: 404,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
 
     console.log('Found Plaid connection with item_id:', connection.item_id);
@@ -61,13 +89,22 @@ serve(async (req) => {
     console.log('Simulating webhook with payload:', webhookPayload);
 
     // Call the plaid-webhook function
-    const { error: webhookError } = await supabase.functions.invoke('plaid-webhook', {
+    const { data: webhookResponse, error: webhookError } = await supabase.functions.invoke('plaid-webhook', {
       body: webhookPayload
     });
 
     if (webhookError) {
       console.error('Error calling webhook:', webhookError);
-      throw webhookError;
+      return new Response(
+        JSON.stringify({ error: 'Failed to trigger webhook' }),
+        { 
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
 
     console.log('Webhook simulation completed successfully');
@@ -76,26 +113,27 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Webhook simulation completed successfully',
-        webhook_payload: webhookPayload
+        webhook_payload: webhookPayload,
+        webhook_response: webhookResponse
       }),
       { 
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
   } catch (error) {
     console.error('Error simulating webhook:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        status: 400,
+        status: 500,
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
   }
 });
