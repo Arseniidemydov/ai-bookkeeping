@@ -1,5 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { initializeApp, getApps, credential } from 'https://esm.sh/@firebase/app@0.9.29';
+import { getMessaging } from 'https://esm.sh/@firebase/messaging@0.12.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +9,16 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
+
+// Initialize Firebase Admin if not already initialized
+if (getApps().length === 0) {
+  const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT') || '{}');
+  
+  initializeApp({
+    credential: credential.cert(serviceAccount),
+    projectId: "ai-bookeeping-app"
+  });
+}
 
 serve(async (req) => {
   console.log('Function invoked with method:', req.method);
@@ -32,73 +44,63 @@ serve(async (req) => {
       isWebPush = false;
     }
 
+    const messaging = getMessaging();
+
     if (isWebPush) {
-      // For web push, use Firebase Cloud Messaging (FCM)
+      // For web push, extract FCM token from endpoint
       const subscription = JSON.parse(payload.token);
       const fcmEndpoint = subscription.endpoint;
       
       if (fcmEndpoint.includes('fcm.googleapis.com')) {
-        // Extract FCM token from endpoint
         const fcmToken = fcmEndpoint.split('/').pop();
         
-        const fcmPayload = {
-          message: {
-            token: fcmToken,
+        console.log('Sending web push notification with token:', fcmToken?.substring(0, 10) + '...');
+        
+        const message = {
+          token: fcmToken,
+          notification: {
+            title: payload.title,
+            body: payload.body
+          },
+          webpush: {
             notification: {
-              title: payload.title,
-              body: payload.body
-            },
-            webpush: {
-              notification: {
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
-                timestamp: new Date().getTime()
-              }
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              timestamp: new Date().getTime()
             }
           }
         };
 
-        const fcmResponse = await fetch('https://fcm.googleapis.com/v1/projects/your-project-id/messages:send', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('FCM_SERVER_KEY')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(fcmPayload)
-        });
-
-        if (!fcmResponse.ok) {
-          throw new Error(`FCM request failed: ${await fcmResponse.text()}`);
-        }
-
-        console.log('FCM notification sent successfully');
+        await messaging.send(message);
+        console.log('Web push notification sent successfully');
       }
     } else {
-      // For native apps, use direct FCM
-      const fcmPayload = {
-        to: payload.token,
+      // For native apps
+      console.log('Sending native push notification');
+      
+      const message = {
+        token: payload.token,
         notification: {
           title: payload.title,
-          body: payload.body,
-          sound: 'default'
+          body: payload.body
         },
-        priority: 'high'
+        android: {
+          notification: {
+            icon: 'ic_launcher',
+            sound: 'default'
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default'
+            }
+          }
+        }
       };
 
-      const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
-        method: 'POST',
-        headers: {
-          'Authorization': `key=${Deno.env.get('FCM_SERVER_KEY')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(fcmPayload)
-      });
-
-      if (!fcmResponse.ok) {
-        throw new Error(`FCM request failed: ${await fcmResponse.text()}`);
-      }
-
-      console.log('Native FCM notification sent successfully');
+      await messaging.send(message);
+      console.log('Native push notification sent successfully');
     }
 
     return new Response(
