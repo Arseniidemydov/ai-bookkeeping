@@ -9,11 +9,30 @@ export function usePushNotifications() {
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
+  const refreshNotificationToken = async () => {
+    if (Capacitor.isNativePlatform()) {
+      // Re-register for native platform
+      await PushNotifications.register();
+    } else if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
+        });
+        const token = JSON.stringify(subscription);
+        setPushToken(token);
+        await storeToken(token);
+      } catch (error) {
+        console.error('Error refreshing web push token:', error);
+        toast.error('Failed to refresh notification registration');
+      }
+    }
+  };
+
   useEffect(() => {
     const initializePushNotifications = async () => {
-      // Check if we're running on a native platform
       if (Capacitor.isNativePlatform()) {
-        // Native mobile implementation
         try {
           const permStatus = await PushNotifications.checkPermissions();
           
@@ -31,11 +50,8 @@ export function usePushNotifications() {
           }
 
           setNotificationsEnabled(true);
-
-          // Register for push notifications
           await PushNotifications.register();
 
-          // Add listeners
           PushNotifications.addListener('registration', async (token) => {
             console.log('Push registration success:', token.value);
             setPushToken(token.value);
@@ -63,7 +79,6 @@ export function usePushNotifications() {
           toast.error('Failed to initialize push notifications');
         }
       } else {
-        // Web PWA implementation
         try {
           if ('Notification' in window) {
             const permission = await Notification.requestPermission();
@@ -71,7 +86,6 @@ export function usePushNotifications() {
             if (permission === 'granted') {
               setNotificationsEnabled(true);
               
-              // Register the service worker for PWA
               if ('serviceWorker' in navigator) {
                 try {
                   const registration = await navigator.serviceWorker.register('/sw.js');
@@ -108,46 +122,30 @@ export function usePushNotifications() {
       }
 
       try {
-        // First, check if the token is already stored
-        const { data: existingTokens } = await supabase
+        // Delete any existing tokens for this user first
+        const { error: deleteError } = await supabase
           .from('device_tokens')
-          .select('*')
-          .eq('user_id', session.session.user.id)
-          .eq('token', token);
+          .delete()
+          .eq('user_id', session.session.user.id);
 
-        // Only store if token doesn't exist
-        if (!existingTokens || existingTokens.length === 0) {
-          console.log('Storing new token for user:', session.session.user.id);
-          const { error } = await supabase
-            .from('device_tokens')
-            .insert({
-              user_id: session.session.user.id,
-              token: token
-              // created_at and updated_at will be automatically set by Supabase
-            });
+        if (deleteError) {
+          console.error('Error cleaning up old tokens:', deleteError);
+        }
 
-          if (error) {
-            console.error('Error storing push token:', error);
-            toast.error('Failed to register device for notifications');
-          } else {
-            console.log('Successfully stored push token');
-            toast.success('Successfully registered for notifications');
-          }
+        // Store the new token
+        const { error: insertError } = await supabase
+          .from('device_tokens')
+          .insert({
+            user_id: session.session.user.id,
+            token: token
+          });
+
+        if (insertError) {
+          console.error('Error storing push token:', insertError);
+          toast.error('Failed to register device for notifications');
         } else {
-          // Update timestamp for existing token
-          const { error } = await supabase
-            .from('device_tokens')
-            .update({
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', session.session.user.id)
-            .eq('token', token);
-
-          if (error) {
-            console.error('Error updating token timestamp:', error);
-          } else {
-            console.log('Successfully updated token timestamp');
-          }
+          console.log('Successfully stored push token');
+          toast.success('Successfully registered for notifications');
         }
       } catch (error) {
         console.error('Error in storeToken:', error);
@@ -167,6 +165,7 @@ export function usePushNotifications() {
 
   return {
     pushToken,
-    notificationsEnabled
+    notificationsEnabled,
+    refreshToken: refreshNotificationToken
   };
 }

@@ -3,7 +3,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 import { 
   initializeApp as initializeFirebaseApp,
-  applicationDefault,
   cert
 } from "npm:firebase-admin/app";
 import { getMessaging } from "npm:firebase-admin/messaging";
@@ -29,7 +28,6 @@ try {
   }
 
   const serviceAccount = JSON.parse(serviceAccountStr);
-  console.log('Firebase service account loaded successfully');
   
   firebaseApp = initializeFirebaseApp({
     credential: cert(serviceAccount)
@@ -42,7 +40,7 @@ try {
 }
 
 async function removeInvalidToken(token: string) {
-  console.log('Removing invalid token from database:', token.substring(0, 10) + '...');
+  console.log('Removing invalid token from database');
   const { error } = await supabase
     .from('device_tokens')
     .delete()
@@ -56,18 +54,15 @@ async function removeInvalidToken(token: string) {
 }
 
 serve(async (req) => {
-  console.log('Function invoked with method:', req.method);
-  
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const payload = await req.json();
-    console.log('Received payload:', {
-      title: payload.title,
-      body: payload.body,
+    console.log('Processing notification request:', {
+      hasTitle: !!payload.title,
+      hasBody: !!payload.body,
       hasToken: !!payload.token
     });
 
@@ -75,70 +70,41 @@ serve(async (req) => {
       throw new Error('No token provided');
     }
 
-    // Check if this is a web push subscription token
     let isWebPush = false;
     try {
       const tokenObj = JSON.parse(payload.token);
       isWebPush = !!(tokenObj.endpoint && tokenObj.keys);
-      console.log('Token type:', isWebPush ? 'Web Push' : 'Native Push');
-    } catch (e) {
-      console.log('Token is not a web push subscription');
+    } catch {
       isWebPush = false;
     }
 
     const messaging = getMessaging(firebaseApp);
-    console.log('Firebase Messaging instance created');
+    let fcmToken = payload.token;
 
     if (isWebPush) {
-      // For web push, extract FCM token from endpoint
       const subscription = JSON.parse(payload.token);
-      const fcmEndpoint = subscription.endpoint;
-      
-      if (fcmEndpoint.includes('fcm.googleapis.com')) {
-        const fcmToken = fcmEndpoint.split('/').pop();
-        
+      if (subscription.endpoint?.includes('fcm.googleapis.com')) {
+        fcmToken = subscription.endpoint.split('/').pop();
         if (!fcmToken) {
-          throw new Error('Invalid FCM token extracted from endpoint');
-        }
-
-        console.log('Sending web push notification with FCM token');
-        
-        const message = {
-          token: fcmToken,
-          notification: {
-            title: payload.title || 'New Notification',
-            body: payload.body || ''
-          },
-          webpush: {
-            notification: {
-              icon: '/favicon.ico',
-              badge: '/favicon.ico',
-              timestamp: new Date().getTime()
-            }
-          }
-        };
-
-        try {
-          await messaging.send(message);
-          console.log('Web push notification sent successfully');
-        } catch (error) {
-          console.error('Error sending web push:', error);
-          if (error.code === 'messaging/registration-token-not-registered') {
-            await removeInvalidToken(payload.token);
-          }
-          throw error;
+          throw new Error('Invalid FCM token from web push subscription');
         }
       }
-    } else {
-      // For native apps
-      console.log('Sending native push notification');
-      
-      const message = {
-        token: payload.token,
-        notification: {
-          title: payload.title || 'New Notification',
-          body: payload.body || ''
-        },
+    }
+
+    const message = {
+      token: fcmToken,
+      notification: {
+        title: payload.title || 'New Notification',
+        body: payload.body || ''
+      },
+      ...(isWebPush ? {
+        webpush: {
+          notification: {
+            icon: '/favicon.ico',
+            badge: '/favicon.ico'
+          }
+        }
+      } : {
         android: {
           notification: {
             icon: 'ic_launcher',
@@ -152,47 +118,47 @@ serve(async (req) => {
             }
           }
         }
-      };
+      })
+    };
 
-      try {
-        await messaging.send(message);
-        console.log('Native push notification sent successfully');
-      } catch (error) {
-        console.error('Error sending native push:', error);
-        if (error.code === 'messaging/registration-token-not-registered') {
-          await removeInvalidToken(payload.token);
-        }
-        throw error;
+    try {
+      await messaging.send(message);
+      console.log('Push notification sent successfully');
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Push notification sent successfully'
+        }),
+        { headers: corsHeaders }
+      );
+    } catch (error) {
+      console.error('Firebase messaging error:', error);
+      
+      if (error.errorInfo?.code === 'messaging/registration-token-not-registered') {
+        await removeInvalidToken(payload.token);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Token expired',
+            code: 'TOKEN_EXPIRED',
+            message: 'Push notification token needs to be refreshed'
+          }),
+          { headers: corsHeaders }
+        );
       }
+      
+      throw error;
     }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Push notification sent successfully',
-        timestamp: new Date().toISOString()
-      }),
-      { 
-        headers: {
-          ...corsHeaders,
-          'Cache-Control': 'no-store, no-cache, must-revalidate'
-        }
-      }
-    );
-
   } catch (error) {
     console.error('Error in send-push-notification:', error);
     
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        code: error.code,
-        timestamp: new Date().toISOString()
+        code: error.errorInfo?.code,
+        message: 'Failed to send push notification'
       }),
-      { 
-        headers: corsHeaders, 
-        status: 200 // Keep 200 to prevent cascade failure
-      }
+      { headers: corsHeaders }
     );
   }
 });
