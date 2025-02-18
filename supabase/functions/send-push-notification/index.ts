@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { initializeApp, credential, getApps } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-admin-app.js";
-import { getMessaging } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-admin-messaging.js";
+import { initializeApp, cert, getApps } from "npm:firebase-admin/app";
+import { getMessaging } from "npm:firebase-admin/messaging";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +15,7 @@ if (getApps().length === 0) {
   const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT') || '{}');
   
   initializeApp({
-    credential: credential.cert(serviceAccount),
+    credential: cert(serviceAccount),
     projectId: "ai-bookeeping-app"
   });
 }
