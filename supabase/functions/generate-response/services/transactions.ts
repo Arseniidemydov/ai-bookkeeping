@@ -41,6 +41,10 @@ export async function addIncomeTransaction(
   }
 
   try {
+    // Ensure date is in YYYY-MM-DD format
+    const formattedDate = formatDate(date);
+    console.log('Formatted date for income transaction:', formattedDate);
+
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -49,7 +53,7 @@ export async function addIncomeTransaction(
         type: 'income',
         description: source,
         category: category,
-        date: date
+        date: formattedDate
       }])
       .select()
       .single();
@@ -79,6 +83,10 @@ export async function addExpenseTransaction(
   }
 
   try {
+    // Ensure date is in YYYY-MM-DD format
+    const formattedDate = formatDate(date);
+    console.log('Formatted date for expense transaction:', formattedDate);
+
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -87,7 +95,7 @@ export async function addExpenseTransaction(
         type: 'expense',
         description: category,
         category: category,
-        date: date
+        date: formattedDate
       }])
       .select()
       .single();
@@ -102,5 +110,42 @@ export async function addExpenseTransaction(
   } catch (error) {
     console.error('Error in addExpenseTransaction:', error);
     throw error;
+  }
+}
+
+// Helper function to format dates consistently
+function formatDate(dateStr: string): string {
+  try {
+    // Handle different date formats
+    let date: Date;
+    
+    // Check if date is in DD-MM-YYYY format
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+      const [day, month, year] = dateStr.split('-');
+      date = new Date(`${year}-${month}-${day}`);
+    }
+    // Check if date is in YYYY-MM-DD format
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      date = new Date(dateStr);
+    }
+    // Try to parse as a regular date string
+    else {
+      date = new Date(dateStr);
+    }
+
+    // Validate the date
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date: ${dateStr}`);
+    }
+
+    // Format to YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    throw new Error(`Invalid date format: ${dateStr}. Please use YYYY-MM-DD format.`);
   }
 }
