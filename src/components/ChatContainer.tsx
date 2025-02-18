@@ -1,6 +1,6 @@
 
 import { useRef } from "react";
-import { ChatInput } from "@/components/ChatInput";
+import ChatInput from "@/components/ChatInput"; // Fixed import
 import { ConversationStarters } from "@/components/ConversationStarters";
 import { LoadingSpinner } from "./chat/LoadingSpinner";
 import { MessagesList } from "./chat/MessagesList";
@@ -46,7 +46,7 @@ export const ChatContainer = () => {
         setMessages(prev => [...prev, userMessage]);
 
         // Simulate webhook
-        await simulateWebhookMutation.mutateAsync(itemId);
+        await simulateWebhookMutation.mutateAsync();
 
         // Add response message
         const savedResponseMessage = await saveMutation.mutateAsync({

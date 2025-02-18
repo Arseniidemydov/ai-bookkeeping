@@ -2,13 +2,13 @@
 import React, { useState, useRef } from "react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { SendHorizontal, Upload } from "lucide-react";
+import { SendHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import TransactionImageUpload from "./chat/TransactionImageUpload";
-import LoadingSpinner from "./chat/LoadingSpinner";
+import { TransactionImageUpload } from "./chat/TransactionImageUpload";
+import { LoadingSpinner } from "./chat/LoadingSpinner";
 import { useChat } from "@/hooks/useChat";
 
-export default function ChatInput() {
+export default function ChatInput({ onSend }: { onSend: (message: string, file?: File) => Promise<void> }) {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -25,22 +25,7 @@ export default function ChatInput() {
 
     setIsLoading(true);
     try {
-      // First save the user's message
-      const userMessage = {
-        content: message,
-        sender: "user" as const,
-      };
-
-      await saveMutation.mutateAsync(userMessage);
-
-      // Generate and save the response
-      const response = await chatMutation.mutateAsync({ message });
-      
-      await saveMutation.mutateAsync({
-        content: response,
-        sender: "other" as const,
-      });
-
+      await onSend(message, fileInputRef.current?.files?.[0]);
       setMessage("");
     } catch (error) {
       console.error('Error in chat:', error);
@@ -53,25 +38,7 @@ export default function ChatInput() {
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
     try {
-      const uploadedFile = await uploadMutation.mutateAsync(file);
-
-      // Save the user's upload message
-      await saveMutation.mutateAsync({
-        content: `Uploaded file: ${file.name}`,
-        sender: "user" as const,
-        file: uploadedFile
-      });
-
-      // Generate and save the response
-      const response = await chatMutation.mutateAsync({ 
-        message: "Analyze this file",
-        fileUrl: uploadedFile.url
-      });
-
-      await saveMutation.mutateAsync({
-        content: response,
-        sender: "other" as const,
-      });
+      await onSend("", file);
     } catch (error) {
       console.error('Error uploading file:', error);
       toast.error("Failed to upload file");

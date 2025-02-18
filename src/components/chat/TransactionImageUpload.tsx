@@ -6,71 +6,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface TransactionImageUploadProps {
-  onSuccess?: () => void;
+  onFileSelect: (file: File) => void;
 }
 
-export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProps) {
+export function TransactionImageUpload({ onFileSelect }: TransactionImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
 
   const handleImageUpload = async (file: File) => {
     try {
       setIsUploading(true);
-
-      // Get the most recent transaction for the current user
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) {
-        toast.error("Please sign in to upload images");
-        return;
-      }
-
-      const { data: transactions, error: fetchError } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('user_id', session.session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Upload file to storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('transaction_attachments')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get the public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
-        .from('transaction_attachments')
-        .getPublicUrl(fileName);
-
-      // Create a document page entry
-      const { data: pageData, error: pageError } = await supabase
-        .from('document_pages')
-        .insert([{
-          image_url: publicUrl,
-          page_number: 1,
-          document_id: null
-        }])
-        .select()
-        .single();
-
-      if (pageError) throw pageError;
-
-      // Update transaction with document page reference
-      const { error: updateError } = await supabase
-        .from('transactions')
-        .update({ document_page_id: pageData.id })
-        .eq('id', transactions.id);
-
-      if (updateError) throw updateError;
-
-      toast.success("Image attached successfully");
-      onSuccess?.();
+      onFileSelect(file);
     } catch (error) {
       console.error('Error uploading image:', error);
       toast.error("Failed to attach image");
