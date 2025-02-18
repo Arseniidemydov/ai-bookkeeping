@@ -135,31 +135,34 @@ export function Dashboard() {
         return;
       }
 
-      console.log('Attempting to send notification for user:', session.session.user.id);
+      console.log('Starting test notification request...');
+      console.log('User ID:', session.session.user.id);
 
       const { data, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
           user_id: session.session.user.id,
           title: 'Test Notification',
-          body: 'This is a test notification. If you see this, push notifications are working!'
+          body: 'This is a test notification',
+          timestamp: new Date().toISOString()
         },
       });
 
-      console.log('Response from notification function:', { data, error });
+      console.log('Response:', { data, error });
 
       if (error) {
-        console.error('Detailed error information:', {
+        console.error('Error details:', {
           message: error.message,
           name: error.name,
           stack: error.stack,
           context: error
         });
         toast.error('Failed to send test notification');
-      } else {
-        toast.success('Test notification sent!');
+        return;
       }
+
+      toast.success('Test notification sent successfully!');
     } catch (error) {
-      console.error('Full error details:', {
+      console.error('Caught error:', {
         error,
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
