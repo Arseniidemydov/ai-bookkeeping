@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import webpush from 'https://esm.sh/web-push@3.6.7'
+import * as webpush from 'https://esm.sh/v135/web-push@3.6.7'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -114,16 +114,14 @@ serve(async (req) => {
       try {
         const subscription = JSON.parse(token);
         
-        const pushPayload = JSON.stringify({
-          notification: {
-            title,
-            body,
-            icon: '/favicon.ico',
-            timestamp: new Date().toISOString()
-          }
+        const payload = JSON.stringify({
+          title,
+          body,
+          icon: '/favicon.ico',
+          timestamp: new Date().toISOString()
         });
 
-        await webpush.sendNotification(subscription, pushPayload);
+        await webpush.sendNotification(subscription, payload);
         results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
         console.error('Failed to send notification:', error);
