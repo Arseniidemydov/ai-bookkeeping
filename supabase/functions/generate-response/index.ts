@@ -1,8 +1,13 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import OpenAI from "https://deno.land/x/openai@v4.24.0/mod.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const openai = new OpenAI({
+  apiKey: Deno.env.get('OPENAI_API_KEY')!
+});
+
+const ASSISTANT_ID = "asst_wn94DpzGVJKBFLR4wkh7btD2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,7 +15,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -19,72 +23,52 @@ serve(async (req) => {
   }
 
   try {
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
-    }
+    const { prompt, userId, threadId: existingThreadId, fileUrl } = await req.json();
+    console.log('Request received:', { prompt, userId, existingThreadId, fileUrl });
 
-    const { prompt, userId, threadId, fileUrl } = await req.json();
-    console.log('Request received:', { prompt, userId, threadId, fileUrl });
+    // Create or retrieve thread
+    const threadId = existingThreadId || (await openai.beta.threads.create()).id;
+    console.log('Using thread:', threadId);
 
-    let messages = [];
-    let systemMessage = "You are a helpful AI assistant.";
-
-    if (fileUrl) {
-      systemMessage += " The user has shared an image with you. Please analyze it and provide relevant information.";
-      messages.push({
-        role: "system",
-        content: [
-          { type: "text", text: systemMessage },
-          { type: "image_url", image_url: fileUrl }
-        ]
-      });
-    } else {
-      messages.push({
-        role: "system",
-        content: systemMessage
-      });
-    }
-
-    messages.push({
+    // Add the message to the thread
+    await openai.beta.threads.messages.create(threadId, {
       role: "user",
-      content: prompt
+      content: fileUrl ? `${prompt}\nImage URL: ${fileUrl}` : prompt,
     });
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: fileUrl ? "gpt-4o" : "gpt-4o-mini",
-        messages: messages,
-        max_tokens: 1000,
-        temperature: 0.7,
-        stream: false
-      })
+    // Run the assistant
+    const run = await openai.beta.threads.runs.create(threadId, {
+      assistant_id: ASSISTANT_ID,
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to generate response');
+    // Poll for completion
+    let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
+    while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
+      console.log('Run status:', runStatus.status);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     }
 
-    const data = await response.json();
-    const generatedText = data.choices[0].message.content;
+    if (runStatus.status === 'completed') {
+      const messages = await openai.beta.threads.messages.list(threadId);
+      const lastMessage = messages.data[0];
+      const generatedText = lastMessage.content[0].type === 'text' ? lastMessage.content[0].text.value : '';
 
-    return new Response(
-      JSON.stringify({ 
-        generatedText,
-        threadId: threadId || crypto.randomUUID()
-      }),
-      {
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
+      return new Response(
+        JSON.stringify({ 
+          generatedText,
+          threadId
+        }),
+        {
+          headers: { 
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
         }
-      }
-    );
+      );
+    } else {
+      throw new Error(`Run failed with status: ${runStatus.status}`);
+    }
   } catch (error) {
     console.error('Error in generate-response:', error);
     
