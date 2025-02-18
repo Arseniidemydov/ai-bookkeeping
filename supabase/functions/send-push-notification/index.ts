@@ -88,7 +88,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
         title,
         body
       },
-      webPush: {
+      webpush: {
         notification: {
           title,
           body,
@@ -104,11 +104,11 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           Urgency: 'high',
           TTL: '86400'
         },
-        fcmOptions: {
+        fcm_options: {
           link: '/'
         }
       },
-      token: JSON.stringify(token)
+      token: typeof token === 'string' ? token : JSON.stringify(token)
     };
 
     try {
@@ -143,7 +143,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           }
         }
       },
-      webPush: {
+      webpush: {
         headers: {
           Urgency: 'high',
           TTL: '86400'
@@ -159,7 +159,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           renotify: true,
           timestamp: Date.now()
         },
-        fcmOptions: {
+        fcm_options: {
           link: '/'
         }
       }
