@@ -100,7 +100,13 @@ export function Dashboard() {
         return;
       }
 
-      const tables = ['transactions', 'plaid_connections', 'device_tokens', 'chat_messages'];
+      const tables = [
+        'transactions',
+        'plaid_connections',
+        'device_tokens',
+        'chat_messages'
+      ] as const;
+
       for (const table of tables) {
         const { error } = await supabase
           .from(table)
