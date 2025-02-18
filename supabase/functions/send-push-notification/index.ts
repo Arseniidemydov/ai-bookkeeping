@@ -18,29 +18,14 @@ serve(async (req) => {
     // Log request details for debugging
     console.log('Request method:', req.method);
     console.log('Request headers:', Object.fromEntries(req.headers.entries()));
-    
-    // Check if request has a body
-    if (req.body === null) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Request body is missing'
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400
-        }
-      );
-    }
 
-    // Get the raw body text first for logging
-    const bodyText = await req.text();
-    console.log('Raw request body:', bodyText);
-
-    // Try to parse the JSON body
+    // Get the request body
     let requestData;
     try {
-      requestData = JSON.parse(bodyText);
+      // Get the request body data directly from the Request object
+      const body = await req.json();
+      console.log('Parsed request body:', body);
+      requestData = body;
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
       return new Response(
@@ -57,7 +42,7 @@ serve(async (req) => {
     }
 
     const { user_id, title, body } = requestData;
-    console.log('Parsed request data:', { user_id, title, body });
+    console.log('Extracted data:', { user_id, title, body });
 
     if (!user_id || !title || !body) {
       return new Response(
@@ -139,7 +124,6 @@ serve(async (req) => {
       );
     }
 
-    // Fix: Use the correct URL format for VAPID subject
     webpush.setVapidDetails(
       'https://mail.google.com',
       VAPID_PUBLIC_KEY,
