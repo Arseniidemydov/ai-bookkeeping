@@ -5,10 +5,8 @@ import OpenAI from "https://deno.land/x/openai@v4.24.1/mod.ts";
 
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!,
-  baseOptions: {
-    headers: {
-      'OpenAI-Beta': 'assistants=v2'
-    }
+  defaultHeaders: {
+    'OpenAI-Beta': 'assistants=v2'
   }
 });
 
