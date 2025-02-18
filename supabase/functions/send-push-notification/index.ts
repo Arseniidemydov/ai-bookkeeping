@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import webpush from "https://esm.sh/web-push@3.6.1"
+import * as webpush from "https://deno.land/x/web_push@v0.3.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 
 const corsHeaders = {
@@ -55,7 +55,8 @@ serve(async (req) => {
       throw new Error('VAPID_PRIVATE_KEY is not set');
     }
 
-    webpush.setVapidDetails(
+    // Initialize web push with VAPID keys
+    await webpush.setVAPIDDetails(
       'mailto:test@example.com',
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
