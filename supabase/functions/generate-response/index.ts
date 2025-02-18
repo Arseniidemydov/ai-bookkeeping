@@ -42,7 +42,7 @@ serve(async (req) => {
     const headers = {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v1'
+      'OpenAI-Beta': 'assistants=v2'  // Updated to v2
     };
 
     // Create or retrieve thread
