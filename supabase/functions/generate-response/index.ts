@@ -2,7 +2,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
-import { corsHeaders, handleCORS } from './utils/cors.ts';
+import { corsHeaders } from './utils/cors.ts';
 import { getTransactionsContext, addIncomeTransaction, addExpenseTransaction } from './services/transactions.ts';
 import { 
   createThread, 
@@ -22,8 +22,9 @@ if (!openAIApiKey) {
 }
 
 serve(async (req) => {
-  const corsResponse = handleCORS(req);
-  if (corsResponse) return corsResponse;
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const { prompt, userId, threadId, fileUrl } = await req.json();
@@ -46,7 +47,6 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
-    // Optimize the message context to reduce token usage
     const messageWithContext = transactionsContext ? 
       `Context: ${transactionsContext}\nUser: ${prompt}` : 
       `User: ${prompt}`;
@@ -59,9 +59,9 @@ serve(async (req) => {
     
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 5; // Increased max attempts
-    const initialDelay = 2000;
-    const maxDelay = 32000; // Maximum delay of 32 seconds
+    const maxAttempts = 10; // Increased max attempts
+    const initialDelay = 3000; // Increased initial delay
+    const maxDelay = 60000; // Maximum delay of 60 seconds
 
     while (attempts < maxAttempts) {
       console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
@@ -85,15 +85,13 @@ serve(async (req) => {
       }
       
       if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
-        // Check specifically for rate limit errors
         if (runStatusData.last_error?.code === 'rate_limit_exceeded') {
-          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "2");
+          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "3");
           const delay = Math.min(Math.max(retryAfter * 1000, initialDelay), maxDelay);
           
           console.log(`Rate limit hit. Waiting ${delay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           
-          // Restart the run after waiting
           console.log('Restarting assistant run...');
           const newRun = await startAssistantRun(currentThreadId);
           runStatusData = await getRunStatus(currentThreadId, newRun.id);
@@ -117,6 +115,7 @@ serve(async (req) => {
         maxDelay
       );
       
+      console.log(`Waiting ${delay}ms before next status check...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
