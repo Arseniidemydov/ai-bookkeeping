@@ -84,35 +84,35 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
   if (isWebPushSubscription(token)) {
     console.log('Sending web push notification using WebPush subscription');
     const message = {
+      notification: {
+        title,
+        body
+      },
       webPush: {
         notification: {
           title,
           body,
           icon: '/favicon.ico',
-          badge: '/favicon.ico'
+          badge: '/favicon.ico',
+          vibrate: [200, 100, 200],
+          requireInteraction: false,
+          tag: 'message',
+          renotify: true,
+          timestamp: Date.now()
         },
         headers: {
           Urgency: 'high',
           TTL: '86400'
         },
-        data: {
-          notification: {
-            title,
-            body,
-            data: {
-              url: '/'
-            }
-          }
-        },
-        fcm_options: {
+        fcmOptions: {
           link: '/'
         }
       },
-      tokens: [JSON.stringify(token)]
+      token: JSON.stringify(token)
     };
 
     try {
-      const response = await messaging.sendMulticast(message);
+      const response = await messaging.send(message);
       console.log('Web push notification sent successfully:', response);
       return response;
     } catch (error) {
@@ -127,13 +127,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
         body
       },
       data: {
-        notification: {
-          title,
-          body,
-          data: {
-            url: '/'
-          }
-        }
+        url: '/'
       },
       token: typeof token === 'string' ? token : '',
       android: {
@@ -149,7 +143,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           }
         }
       },
-      webpush: {
+      webPush: {
         headers: {
           Urgency: 'high',
           TTL: '86400'
@@ -158,9 +152,14 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           title,
           body,
           icon: '/favicon.ico',
-          badge: '/favicon.ico'
+          badge: '/favicon.ico',
+          vibrate: [200, 100, 200],
+          requireInteraction: false,
+          tag: 'message',
+          renotify: true,
+          timestamp: Date.now()
         },
-        fcm_options: {
+        fcmOptions: {
           link: '/'
         }
       }
