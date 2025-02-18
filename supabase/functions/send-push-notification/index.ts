@@ -83,7 +83,10 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
   
   if (isWebPushSubscription(token)) {
     console.log('Sending web push notification using WebPush subscription');
+    
+    // For web push subscriptions, we just need the basic message structure
     const message = {
+      token: typeof token === 'string' ? token : token.endpoint,
       notification: {
         title,
         body
@@ -97,8 +100,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           vibrate: [200, 100, 200],
           requireInteraction: false,
           tag: 'message',
-          renotify: true,
-          timestamp: Date.now()
+          renotify: true
         },
         headers: {
           Urgency: 'high',
@@ -107,11 +109,11 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
         fcm_options: {
           link: '/'
         }
-      },
-      token: typeof token === 'string' ? token : JSON.stringify(token)
+      }
     };
 
     try {
+      console.log('Sending web push message:', JSON.stringify(message, null, 2));
       const response = await messaging.send(message);
       console.log('Web push notification sent successfully:', response);
       return response;
@@ -121,15 +123,14 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
     }
   } else {
     console.log('Sending FCM notification');
+    
+    // For FCM tokens, we use the full FCM message structure
     const message = {
+      token: token.toString(),
       notification: {
         title,
         body
       },
-      data: {
-        url: '/'
-      },
-      token: typeof token === 'string' ? token : '',
       android: {
         notification: {
           icon: 'ic_launcher',
@@ -144,10 +145,6 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
         }
       },
       webpush: {
-        headers: {
-          Urgency: 'high',
-          TTL: '86400'
-        },
         notification: {
           title,
           body,
@@ -156,8 +153,11 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           vibrate: [200, 100, 200],
           requireInteraction: false,
           tag: 'message',
-          renotify: true,
-          timestamp: Date.now()
+          renotify: true
+        },
+        headers: {
+          Urgency: 'high',
+          TTL: '86400'
         },
         fcm_options: {
           link: '/'
@@ -166,6 +166,7 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
     };
 
     try {
+      console.log('Sending FCM message:', JSON.stringify(message, null, 2));
       const response = await messaging.send(message);
       console.log('FCM notification sent successfully:', response);
       return response;
