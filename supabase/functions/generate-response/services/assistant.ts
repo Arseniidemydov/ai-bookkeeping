@@ -1,5 +1,6 @@
 
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
