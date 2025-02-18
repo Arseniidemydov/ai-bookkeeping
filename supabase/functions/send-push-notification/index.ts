@@ -1,7 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import webPush from 'https://esm.sh/web-push@3.6.1'
+// Note: using a specific version and importing only what we need
+import { setVapidDetails, sendNotification } from 'https://esm.sh/web-push@3.6.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,7 +64,7 @@ serve(async (req) => {
     }
 
     try {
-      webPush.setVapidDetails(
+      setVapidDetails(
         'mailto:test@example.com',
         VAPID_PUBLIC_KEY,
         VAPID_PRIVATE_KEY
@@ -87,7 +88,7 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
 
-        await webPush.sendNotification(subscription, pushPayload);
+        await sendNotification(subscription, pushPayload);
         results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
         console.error('Failed to send notification:', error);
