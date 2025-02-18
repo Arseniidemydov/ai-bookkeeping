@@ -28,7 +28,7 @@ export function usePushNotifications() {
           // Store the subscription in Supabase
           const { data: session } = await supabase.auth.getSession();
           if (session?.session?.user) {
-            const { error } = await supabase
+            const { error: upsertError } = await supabase
               .from('device_tokens')
               .upsert({
                 user_id: session.session.user.id,
@@ -37,34 +37,44 @@ export function usePushNotifications() {
                 onConflict: 'user_id,token'
               });
 
-            if (error) {
-              console.error('Error storing push token:', error);
+            if (upsertError) {
+              console.error('Error storing push token:', upsertError);
               toast.error('Failed to register device for notifications');
-            } else {
-              console.log('Successfully stored push token');
-              
-              // Test the notification system with better error handling
-              try {
-                const { data, error: fnError } = await supabase.functions.invoke('send-push-notification', {
+              return;
+            }
+
+            console.log('Successfully stored push token');
+            
+            // Test the notification system with better error handling
+            try {
+              const { data: testData, error: testError } = await supabase.functions.invoke(
+                'send-push-notification',
+                {
                   body: {
                     user_id: session.session.user.id,
                     title: 'Notifications Enabled',
                     body: 'You will now receive notifications from our app!'
                   }
-                });
-
-                if (fnError) {
-                  console.error('Error sending test notification:', fnError);
-                  toast.error('Failed to send test notification');
-                  return;
                 }
+              );
 
-                console.log('Test notification sent:', data);
-                toast.success('Successfully registered for notifications');
-              } catch (error) {
-                console.error('Error sending test notification:', error);
+              if (testError) {
+                console.error('Error sending test notification:', testError);
                 toast.error('Failed to send test notification');
+                return;
               }
+
+              if (!testData?.success) {
+                console.error('Test notification failed:', testData);
+                toast.error('Failed to send test notification');
+                return;
+              }
+
+              console.log('Test notification sent:', testData);
+              toast.success('Successfully registered for notifications');
+            } catch (error) {
+              console.error('Error sending test notification:', error);
+              toast.error('Failed to send test notification. Please try again.');
             }
           }
         }
