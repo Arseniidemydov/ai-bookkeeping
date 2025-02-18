@@ -283,6 +283,33 @@ export function Dashboard() {
     }
   });
 
+  const simulateWebhookMutation = useMutation({
+    mutationFn: async () => {
+      console.log('Simulating Plaid webhook...');
+      const response = await supabase.functions.invoke('simulate-plaid-webhook', {
+        body: {}
+      });
+
+      if (response.error) {
+        console.error('Error simulating webhook:', response.error);
+        toast.error("Failed to simulate webhook");
+        throw response.error;
+      }
+
+      toast.success("Webhook simulation completed");
+      return response.data;
+    }
+  });
+
+  const simulateWebhook = async () => {
+    try {
+      await simulateWebhookMutation.mutateAsync();
+    } catch (error) {
+      console.error('Error simulating webhook:', error);
+      toast.error("Failed to simulate webhook");
+    }
+  };
+
   useEffect(() => {
     const channel = supabase.channel('transactions-changes').on('postgres_changes', {
       event: '*',
@@ -423,11 +450,25 @@ export function Dashboard() {
                     </div>
                   ))}
                 </div>
+                <div className="flex justify-center gap-4 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={simulateWebhook}
+                    className="flex items-center gap-2"
+                    disabled={simulateWebhookMutation.isPending}
+                  >
+                    <Bell className="w-4 h-4" />
+                    Test Plaid Webhook
+                  </Button>
+                  <PlaidLinkButton />
+                </div>
               </>
             )}
-            <div className="flex justify-center mt-4">
-              <PlaidLinkButton />
-            </div>
+            {(!plaidConnections || plaidConnections.length === 0) && (
+              <div className="flex justify-center mt-4">
+                <PlaidLinkButton />
+              </div>
+            )}
           </div>
 
           <div className="border-t border-white/10 pt-4">
