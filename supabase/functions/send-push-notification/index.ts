@@ -82,28 +82,40 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
   const messaging = getMessaging(firebaseApp);
   
   if (isWebPushSubscription(token)) {
-    console.log('Sending web push notification');
+    console.log('Sending web push notification using WebPush subscription');
+    // For web push, we'll use a condition-based message targeting Chrome browsers
     const message = {
+      condition: "'chrome' in topics",
       webpush: {
-        headers: {
-          TTL: '86400'
-        },
         notification: {
           title,
           body,
           icon: '/favicon.ico',
           badge: '/favicon.ico',
           vibrate: [100, 50, 100],
-          requireInteraction: true
+          requireInteraction: true,
+          actions: [
+            {
+              action: 'open_url',
+              title: 'Open',
+              icon: '/favicon.ico'
+            }
+          ]
         },
         fcmOptions: {
           link: '/'
         }
-      },
-      topic: 'all' // Using topic-based messaging for web push
+      }
     };
 
-    return await messaging.send(message);
+    try {
+      const response = await messaging.send(message);
+      console.log('Web push notification sent successfully:', response);
+      return response;
+    } catch (error) {
+      console.error('Error sending web push notification:', error);
+      throw error;
+    }
   } else {
     console.log('Sending FCM notification');
     const message = {
@@ -127,7 +139,14 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
       }
     };
 
-    return await messaging.send(message);
+    try {
+      const response = await messaging.send(message);
+      console.log('FCM notification sent successfully:', response);
+      return response;
+    } catch (error) {
+      console.error('Error sending FCM notification:', error);
+      throw error;
+    }
   }
 }
 
@@ -159,7 +178,6 @@ serve(async (req) => {
         payload.body || ''
       );
 
-      console.log('Push notification sent successfully');
       return new Response(
         JSON.stringify({ 
           success: true, 
