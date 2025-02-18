@@ -285,13 +285,19 @@ export function Dashboard() {
   const simulateWebhookMutation = useMutation({
     mutationFn: async () => {
       console.log('Simulating Plaid webhook...');
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error("Please sign in to simulate webhook");
+        throw new Error("Not authenticated");
+      }
+
       const response = await supabase.functions.invoke('simulate-plaid-webhook', {
-        body: {}
+        body: {},
       });
 
       if (response.error) {
         console.error('Error simulating webhook:', response.error);
-        toast.error("Failed to simulate webhook");
+        toast.error(response.error.message || "Failed to simulate webhook");
         throw response.error;
       }
 
