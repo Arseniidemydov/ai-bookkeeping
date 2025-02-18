@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { initializeApp, cert, getApps } from "npm:firebase-admin/app";
 import { getMessaging } from "npm:firebase-admin/messaging";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,11 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
+
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Initialize Firebase Admin if not already initialized
 if (getApps().length === 0) {
@@ -40,6 +46,20 @@ if (getApps().length === 0) {
   } catch (error) {
     console.error('Error initializing Firebase:', error);
     throw error;
+  }
+}
+
+async function removeInvalidToken(token: string) {
+  console.log('Removing invalid token from database:', token.substring(0, 10) + '...');
+  const { error } = await supabase
+    .from('device_tokens')
+    .delete()
+    .eq('token', token);
+
+  if (error) {
+    console.error('Error removing invalid token:', error);
+  } else {
+    console.log('Successfully removed invalid token from database');
   }
 }
 
@@ -112,8 +132,8 @@ serve(async (req) => {
         } catch (error) {
           if (error.code === 'messaging/registration-token-not-registered') {
             // Token is invalid or no longer registered
-            console.log('Token is invalid or expired, should be removed from database');
-            // Here you could make a call to your database to remove this token
+            console.log('Token is invalid or expired, removing from database');
+            await removeInvalidToken(payload.token);
             throw new Error('Push notification token is no longer valid');
           }
           throw error;
@@ -151,8 +171,8 @@ serve(async (req) => {
       } catch (error) {
         if (error.code === 'messaging/registration-token-not-registered') {
           // Token is invalid or no longer registered
-          console.log('Token is invalid or expired, should be removed from database');
-          // Here you could make a call to your database to remove this token
+          console.log('Token is invalid or expired, removing from database');
+          await removeInvalidToken(payload.token);
           throw new Error('Push notification token is no longer valid');
         }
         throw error;
