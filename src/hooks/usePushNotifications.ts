@@ -54,12 +54,26 @@ export function usePushNotifications() {
       await PushNotifications.register();
     } else if ('serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js');
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) {
+          console.error('No service worker registration found');
+          return;
+        }
+
+        // First unsubscribe from existing subscription
+        const existingSubscription = await registration.pushManager.getSubscription();
+        if (existingSubscription) {
+          await existingSubscription.unsubscribe();
+        }
+
+        // Create new subscription
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
         });
+
         const token = JSON.stringify(subscription);
+        console.log('New web push subscription created:', token);
         setPushToken(token);
         await storeToken(token);
       } catch (error) {
@@ -117,32 +131,42 @@ export function usePushNotifications() {
           console.error('Error initializing push notifications:', error);
           toast.error('Failed to initialize push notifications');
         }
-      } else {
+      } else if ('Notification' in window) {
         try {
-          if ('Notification' in window) {
-            const permission = await Notification.requestPermission();
+          const permission = await Notification.requestPermission();
+          
+          if (permission === 'granted') {
+            setNotificationsEnabled(true);
             
-            if (permission === 'granted') {
-              setNotificationsEnabled(true);
-              
-              if ('serviceWorker' in navigator) {
-                try {
-                  const registration = await navigator.serviceWorker.register('/sw.js');
-                  console.log('Service Worker registered successfully:', registration);
-                  
-                  const subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
-                  });
-                  
-                  const token = JSON.stringify(subscription);
-                  console.log('Push subscription created:', token);
+            if ('serviceWorker' in navigator) {
+              try {
+                // Register or get existing service worker
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                console.log('Service Worker registered successfully:', registration);
+                
+                // First check for existing subscription
+                const existingSubscription = await registration.pushManager.getSubscription();
+                if (existingSubscription) {
+                  const token = JSON.stringify(existingSubscription);
+                  console.log('Using existing push subscription:', token);
                   setPushToken(token);
                   await storeToken(token);
-                } catch (error) {
-                  console.error('Service Worker registration failed:', error);
-                  toast.error('Failed to register Service Worker');
+                  return;
                 }
+
+                // Create new subscription if none exists
+                const subscription = await registration.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA'
+                });
+                
+                const token = JSON.stringify(subscription);
+                console.log('New push subscription created:', token);
+                setPushToken(token);
+                await storeToken(token);
+              } catch (error) {
+                console.error('Service Worker registration failed:', error);
+                toast.error('Failed to register Service Worker');
               }
             }
           }
