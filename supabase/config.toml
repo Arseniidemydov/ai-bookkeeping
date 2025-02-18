@@ -2,22 +2,15 @@
 project_id = "pqfawxyxvjocxfhsjdec"
 
 [api]
-enabled = true
 schemas = ["public", "storage", "graphql_public"]
-
-[db]
-enabled = true
-
-[studio]
-enabled = true
-
-[storage]
-enabled = true
 
 [auth]
 enabled = true
 
 [realtime]
+enabled = true
+
+[storage]
 enabled = true
 
 [functions.send-push-notification]
