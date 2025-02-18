@@ -1,11 +1,113 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { Configuration, PlaidApi, PlaidEnvironments } from "npm:plaid@12.3.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const plaidClient = new PlaidApi(
+  new Configuration({
+    basePath: PlaidEnvironments.sandbox,
+    baseOptions: {
+      headers: {
+        'PLAID-CLIENT-ID': Deno.env.get('PLAID_CLIENT_ID'),
+        'PLAID-SECRET': Deno.env.get('PLAID_SECRET'),
+      },
+    },
+  })
+);
+
+async function syncTransactions(accessToken: string, userId: string) {
+  try {
+    console.log('Starting transaction sync for user:', userId);
+    
+    // Initialize sync
+    const syncResponse = await plaidClient.transactionsSync({
+      access_token: accessToken,
+      options: {
+        include_personal_finance_category: true
+      }
+    });
+
+    const { added, modified, removed } = syncResponse.data;
+    console.log(`Found ${added.length} new, ${modified.length} modified, and ${removed.length} removed transactions`);
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Handle new transactions
+    if (added.length > 0) {
+      const newTransactions = added.map(transaction => ({
+        amount: transaction.amount,
+        date: transaction.date,
+        description: transaction.name,
+        category: transaction.personal_finance_category?.primary,
+        type: transaction.amount > 0 ? 'expense' : 'income',
+        user_id: userId
+      }));
+
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert(newTransactions);
+
+      if (insertError) {
+        console.error('Error inserting new transactions:', insertError);
+        throw insertError;
+      }
+      console.log(`Successfully inserted ${added.length} new transactions`);
+    }
+
+    // Handle modified transactions
+    if (modified.length > 0) {
+      for (const transaction of modified) {
+        const { error: updateError } = await supabase
+          .from('transactions')
+          .update({
+            amount: transaction.amount,
+            date: transaction.date,
+            description: transaction.name,
+            category: transaction.personal_finance_category?.primary,
+            type: transaction.amount > 0 ? 'expense' : 'income'
+          })
+          .eq('description', transaction.name)
+          .eq('user_id', userId);
+
+        if (updateError) {
+          console.error('Error updating transaction:', updateError);
+        }
+      }
+      console.log(`Successfully processed ${modified.length} modified transactions`);
+    }
+
+    // Handle removed transactions
+    if (removed.length > 0) {
+      const removedTransactionIds = removed.map(t => t.transaction_id);
+      console.log('Attempting to remove transactions:', removedTransactionIds);
+      
+      const { error: deleteError } = await supabase
+        .from('transactions')
+        .delete()
+        .in('description', removed.map(t => t.name))
+        .eq('user_id', userId);
+
+      if (deleteError) {
+        console.error('Error deleting transactions:', deleteError);
+      } else {
+        console.log(`Successfully removed ${removed.length} transactions`);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error syncing transactions:', error);
+    throw error;
+  }
+}
 
 serve(async (req) => {
   // Log the incoming request method and headers for debugging
@@ -37,7 +139,7 @@ serve(async (req) => {
       // Get the user associated with this Plaid item_id
       const { data: connectionData, error: connectionError } = await supabase
         .from('plaid_connections')
-        .select('user_id, institution_name')
+        .select('user_id, institution_name, access_token')
         .eq('item_id', item_id)
         .single();
 
@@ -53,7 +155,10 @@ serve(async (req) => {
 
       console.log('Found connection data:', connectionData);
 
-      // Get the user's device tokens
+      // Sync transactions using the access token
+      await syncTransactions(connectionData.access_token, connectionData.user_id);
+
+      // Get the user's device tokens for notification
       const { data: tokens, error: tokensError } = await supabase
         .from('device_tokens')
         .select('token')
