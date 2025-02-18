@@ -65,51 +65,63 @@ function parseToken(token: string) {
   }
 }
 
-function extractFCMToken(rawToken: string): string | null {
-  try {
-    const token = parseToken(rawToken);
-    console.log('Token type:', typeof token);
-    console.log('Token value:', typeof token === 'object' ? JSON.stringify(token) : token);
+interface WebPushSubscription {
+  endpoint?: string;
+  keys?: {
+    auth?: string;
+    p256dh?: string;
+  };
+}
 
-    // If it's a web push subscription object
-    if (typeof token === 'object' && token !== null) {
-      console.log('Processing web push subscription');
-      
-      // Look for FCM endpoint
-      if (token.endpoint) {
-        console.log('Subscription endpoint:', token.endpoint);
-        if (token.endpoint.includes('fcm.googleapis.com/fcm/send')) {
-          const fcmToken = token.endpoint.split('/').pop();
-          console.log('Extracted FCM token from endpoint:', fcmToken);
-          return fcmToken || null;
+function isWebPushSubscription(obj: any): obj is WebPushSubscription {
+  return typeof obj === 'object' && obj !== null && 
+         ('endpoint' in obj || ('keys' in obj && typeof obj.keys === 'object'));
+}
+
+async function sendWebPushNotification(subscription: WebPushSubscription, title: string, body: string) {
+  const messaging = getMessaging(firebaseApp);
+  const message = {
+    webpush: {
+      notification: {
+        title,
+        body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico'
+      },
+      fcm_options: {
+        link: '/'
+      }
+    },
+    token: subscription.endpoint!.split('/').pop()!
+  };
+
+  return await messaging.send(message);
+}
+
+async function sendFCMNotification(token: string, title: string, body: string) {
+  const messaging = getMessaging(firebaseApp);
+  const message = {
+    token,
+    notification: {
+      title,
+      body
+    },
+    android: {
+      notification: {
+        icon: 'ic_launcher',
+        sound: 'default'
+      }
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: 'default'
         }
       }
-
-      // Look for auth key in web push subscription
-      if (token.keys?.auth) {
-        console.log('Found auth key in subscription');
-        return token.keys.auth;
-      }
-
-      // Look for FCM token in p256dh key
-      if (token.keys?.p256dh) {
-        console.log('Using p256dh as token');
-        return token.keys.p256dh;
-      }
     }
+  };
 
-    // If it's a plain string token
-    if (typeof token === 'string') {
-      console.log('Using direct FCM token');
-      return token;
-    }
-
-    console.log('No valid token format found');
-    return null;
-  } catch (error) {
-    console.error('Error extracting FCM token:', error);
-    return null;
-  }
+  return await messaging.send(message);
 }
 
 serve(async (req) => {
@@ -129,46 +141,27 @@ serve(async (req) => {
       throw new Error('No token provided');
     }
 
-    const fcmToken = extractFCMToken(payload.token);
-    if (!fcmToken) {
-      throw new Error('Could not extract valid FCM token');
-    }
-
-    console.log('Using FCM token:', fcmToken.substring(0, 10) + '...');
-
-    const messaging = getMessaging(firebaseApp);
-    
-    const message = {
-      token: fcmToken,
-      notification: {
-        title: payload.title || 'New Notification',
-        body: payload.body || ''
-      },
-      android: {
-        notification: {
-          icon: 'ic_launcher',
-          sound: 'default'
-        }
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default'
-          }
-        }
-      },
-      webpush: {
-        notification: {
-          icon: '/favicon.ico',
-          badge: '/favicon.ico'
-        }
-      }
-    };
+    const parsedToken = parseToken(payload.token);
+    console.log('Parsed token type:', typeof parsedToken);
 
     try {
-      await messaging.send(message);
+      if (isWebPushSubscription(parsedToken)) {
+        console.log('Handling as web push subscription');
+        await sendWebPushNotification(
+          parsedToken,
+          payload.title || 'New Notification',
+          payload.body || ''
+        );
+      } else {
+        console.log('Handling as FCM token');
+        await sendFCMNotification(
+          typeof parsedToken === 'string' ? parsedToken : payload.token,
+          payload.title || 'New Notification',
+          payload.body || ''
+        );
+      }
+
       console.log('Push notification sent successfully');
-      
       return new Response(
         JSON.stringify({ 
           success: true, 
