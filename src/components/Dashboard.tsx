@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, Link } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { TransactionImageDialog } from "./TransactionImageDialog";
-import { PlaidLinkButton } from "./PlaidLinkButton";
 
 type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
 interface Transaction {
@@ -100,29 +99,25 @@ export function Dashboard() {
     }
   };
 
-  const createTestTransaction = async () => {
+  const handleConnectBank = async () => {
     try {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) {
-        toast.error('You must be logged in to create a transaction');
+        toast.error("Please sign in to connect your bank account");
         return;
       }
 
-      const { error } = await supabase.from('transactions').insert({
-        amount: 100,
-        type: 'income',
-        category: 'Test',
-        date: new Date().toISOString(),
-        description: 'Test transaction for push notification',
-        user_id: session.session.user.id
+      const { data, error } = await supabase.functions.invoke('create-plaid-link-token', {
+        body: { user_id: session.session.user.id }
       });
 
       if (error) throw error;
-      toast.success('Test transaction created! Check for push notification.');
-      refetch();
+
+      console.log('Got link token:', data.link_token);
+      toast.info("Bank connection feature coming soon!");
     } catch (error) {
-      console.error('Error creating test transaction:', error);
-      toast.error('Failed to create test transaction');
+      console.error('Error creating link token:', error);
+      toast.error("Failed to initiate bank connection");
     }
   };
 
@@ -297,13 +292,13 @@ export function Dashboard() {
       </div>
 
       {isExpanded && <div className="mt-auto pt-4 flex justify-center gap-4">
-        <PlaidLinkButton />
         <Button 
-          variant="outline"
-          onClick={createTestTransaction}
-          className="w-full max-w-[200px] flex items-center justify-center gap-2"
+          variant="default" 
+          onClick={handleConnectBank} 
+          className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
         >
-          Test Notification
+          <Link className="w-4 h-4" />
+          Connect Bank Account
         </Button>
         <Button 
           variant="destructive" 

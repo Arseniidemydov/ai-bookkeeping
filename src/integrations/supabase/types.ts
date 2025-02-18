@@ -45,30 +45,6 @@ export type Database = {
         }
         Relationships: []
       }
-      device_tokens: {
-        Row: {
-          created_at: string
-          id: number
-          token: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          token: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          token?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       document_pages: {
         Row: {
           created_at: string | null
@@ -128,36 +104,6 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
-        }
-        Relationships: []
-      }
-      plaid_connections: {
-        Row: {
-          access_token: string
-          created_at: string | null
-          id: string
-          institution_name: string | null
-          item_id: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          access_token: string
-          created_at?: string | null
-          id?: string
-          institution_name?: string | null
-          item_id: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          access_token?: string
-          created_at?: string | null
-          id?: string
-          institution_name?: string | null
-          item_id?: string
-          updated_at?: string | null
-          user_id?: string
         }
         Relationships: []
       }
