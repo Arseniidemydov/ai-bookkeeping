@@ -148,9 +148,6 @@ serve(async (req) => {
         notification: {
           icon: '/favicon.ico',
           badge: '/favicon.ico'
-        },
-        fcm_options: {
-          link: window.location.origin
         }
       }
     };
