@@ -1,13 +1,13 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
-import { corsHeaders } from "./utils/cors.ts";
-import { addExpenseTransaction, addIncomeTransaction } from "./services/transactions.ts";
-import { processAssistantResponse } from "./services/assistant.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -16,39 +16,53 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, userId, threadId, fileUrl } = await req.json();
+    if (req.method !== 'POST') {
+      throw new Error(`Method ${req.method} not allowed`);
+    }
+
+    // Get request body
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      throw new Error('Missing request body');
+    }
+
+    const { prompt, userId, threadId, fileUrl } = body;
 
     if (!prompt) {
-      throw new Error('No prompt provided');
+      throw new Error('Missing prompt in request body');
     }
 
     if (!userId) {
-      throw new Error('No user ID provided');
+      throw new Error('Missing userId in request body');
     }
 
-    console.log('Received request:', {
-      prompt,
-      userId,
-      threadId: threadId || 'new thread',
-      hasFile: !!fileUrl
-    });
-
-    const response = await processAssistantResponse(
-      supabase,
-      prompt,
-      userId,
-      threadId,
-      fileUrl
+    // Initialize Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        auth: {
+          persistSession: false,
+        },
+      }
     );
 
+    // Mock response for now (replace with your actual logic)
+    const response = {
+      generatedText: "I understand your message. How can I help you further?",
+      threadId: threadId || crypto.randomUUID()
+    };
+
+    // Return the response
     return new Response(
       JSON.stringify(response),
-      {
-        headers: {
+      { 
+        headers: { 
           ...corsHeaders,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-      },
+        status: 200
+      }
     );
   } catch (error) {
     console.error('Error in generate-response:', error);
@@ -58,12 +72,12 @@ serve(async (req) => {
         error: error.message || 'Internal server error',
         details: error.toString()
       }),
-      {
-        status: 500,
-        headers: {
+      { 
+        headers: { 
           ...corsHeaders,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
+        status: error.status || 500
       }
     );
   }

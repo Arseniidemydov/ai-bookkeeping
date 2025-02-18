@@ -62,7 +62,12 @@ export function useChat() {
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          console.log(`Attempt ${attempt} to send message...`);
+          console.log(`Attempt ${attempt} to send message with payload:`, {
+            prompt: message,
+            userId: session.session.user.id,
+            threadId,
+            fileUrl
+          });
           
           const response = await supabase.functions.invoke('generate-response', {
             body: { 
@@ -71,11 +76,20 @@ export function useChat() {
               threadId: threadId,
               fileUrl: fileUrl
             },
+            headers: {
+              'Content-Type': 'application/json'
+            }
           });
+
+          console.log('Response from generate-response:', response);
 
           if (response.error) {
             console.error('Error from generate-response:', response.error);
             throw response.error;
+          }
+
+          if (!response.data) {
+            throw new Error('No data returned from generate-response');
           }
 
           if (response.data.threadId && !threadId) {
@@ -92,9 +106,8 @@ export function useChat() {
             throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
-          // Exponential backoff with initial delay
           await delay(currentDelay);
-          currentDelay *= 2; // Double the delay for next attempt
+          currentDelay *= 2;
         }
       }
 
