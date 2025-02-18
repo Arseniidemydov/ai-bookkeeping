@@ -1,5 +1,6 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
+import { format, parse } from "https://deno.land/x/date_fns@v2.22.1/index.js";
 
 export async function getTransactionsContext(supabase: any, userId: string) {
   if (!userId) {
@@ -41,6 +42,14 @@ export async function addIncomeTransaction(
   }
 
   try {
+    // Parse the date string and format it to ISO
+    let formattedDate = date;
+    if (date.includes('-')) {
+      // Handle DD-MM-YYYY format
+      const parsedDate = parse(date, 'dd-MM-yyyy', new Date());
+      formattedDate = format(parsedDate, 'yyyy-MM-dd');
+    }
+
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -49,7 +58,7 @@ export async function addIncomeTransaction(
         type: 'income',
         description: source,
         category: category,
-        date: date
+        date: formattedDate
       }])
       .select()
       .single();
@@ -79,6 +88,14 @@ export async function addExpenseTransaction(
   }
 
   try {
+    // Parse the date string and format it to ISO
+    let formattedDate = date;
+    if (date.includes('-')) {
+      // Handle DD-MM-YYYY format
+      const parsedDate = parse(date, 'dd-MM-yyyy', new Date());
+      formattedDate = format(parsedDate, 'yyyy-MM-dd');
+    }
+
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -87,7 +104,7 @@ export async function addExpenseTransaction(
         type: 'expense',
         description: category,
         category: category,
-        date: date
+        date: formattedDate
       }])
       .select()
       .single();
