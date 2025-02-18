@@ -106,8 +106,9 @@ export function useChat() {
         throw new Error("User not authenticated");
       }
 
-      // Ensure we're using ISO format for the timestamp
-      const timestamp = new Date().toISOString();
+      // Fix: Format the timestamp in YYYY-MM-DD HH:mm:ss format
+      const now = new Date();
+      const timestamp = now.toISOString().split('.')[0].replace('T', ' ');
 
       const { data, error } = await supabase
         .from('chat_messages')
