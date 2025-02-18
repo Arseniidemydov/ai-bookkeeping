@@ -17,7 +17,7 @@ interface Message {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000;
+const RETRY_DELAY = 2000; // Increased to 2 seconds
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -61,6 +61,8 @@ export function useChat() {
 
       while (retries < MAX_RETRIES) {
         try {
+          console.log(`Attempt ${retries + 1} to send message...`);
+          
           const response = await supabase.functions.invoke('generate-response', {
             body: { 
               prompt: message,
@@ -90,6 +92,7 @@ export function useChat() {
             throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
+          // Wait before retrying with exponential backoff
           await delay(RETRY_DELAY * Math.pow(2, retries - 1));
         }
       }
@@ -106,9 +109,6 @@ export function useChat() {
         throw new Error("User not authenticated");
       }
 
-      // Fix: Using ISO string format for the timestamp
-      const timestamp = new Date().toISOString();
-
       const { data, error } = await supabase
         .from('chat_messages')
         .insert([{
@@ -118,8 +118,7 @@ export function useChat() {
           thread_id: threadId,
           file_url: message.file?.url,
           file_type: message.file?.type,
-          file_name: message.file?.name,
-          timestamp: timestamp
+          file_name: message.file?.name
         }])
         .select()
         .single();
