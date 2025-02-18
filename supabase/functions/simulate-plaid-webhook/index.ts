@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -57,7 +56,7 @@ serve(async (req) => {
     // Get the Plaid connection for this user
     const { data: connection, error: connectionError } = await supabase
       .from('plaid_connections')
-      .select('item_id')
+      .select('*')
       .eq('user_id', user.id)
       .single();
 
@@ -75,7 +74,10 @@ serve(async (req) => {
       );
     }
 
-    console.log('Found Plaid connection with item_id:', connection.item_id);
+    console.log('Found Plaid connection:', {
+      item_id: connection.item_id,
+      institution: connection.institution_name
+    });
 
     // Create a simulated webhook payload
     const webhookPayload = {
@@ -83,20 +85,24 @@ serve(async (req) => {
       webhook_code: "SYNC_UPDATES_AVAILABLE",
       item_id: connection.item_id,
       initial_update_complete: true,
-      historical_update_complete: true
+      historical_update_complete: true,
+      environment: "sandbox"
     };
 
     console.log('Simulating webhook with payload:', webhookPayload);
 
-    // Call the plaid-webhook function
-    const { data: webhookResponse, error: webhookError } = await supabase.functions.invoke('plaid-webhook', {
+    // Call the transaction-webhook function instead of plaid-webhook
+    const { data: webhookResponse, error: webhookError } = await supabase.functions.invoke('transaction-webhook', {
       body: webhookPayload
     });
 
     if (webhookError) {
       console.error('Error calling webhook:', webhookError);
       return new Response(
-        JSON.stringify({ error: 'Failed to trigger webhook' }),
+        JSON.stringify({ 
+          error: 'Failed to trigger webhook', 
+          details: webhookError.message 
+        }),
         { 
           status: 500,
           headers: {
@@ -107,7 +113,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Webhook simulation completed successfully');
+    console.log('Webhook simulation completed successfully:', webhookResponse);
 
     return new Response(
       JSON.stringify({ 
@@ -124,9 +130,12 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error simulating webhook:', error);
+    console.error('Error in simulate-plaid-webhook:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message
+      }),
       { 
         status: 500,
         headers: {
