@@ -15,9 +15,49 @@ serve(async (req) => {
   }
 
   try {
-    // Parse request body
-    const requestData = await req.json();
+    // Log request details for debugging
+    console.log('Request method:', req.method);
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+    
+    // Check if request has a body
+    if (req.body === null) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Request body is missing'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      );
+    }
+
+    // Get the raw body text first for logging
+    const bodyText = await req.text();
+    console.log('Raw request body:', bodyText);
+
+    // Try to parse the JSON body
+    let requestData;
+    try {
+      requestData = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid JSON in request body',
+          details: parseError.message
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      );
+    }
+
     const { user_id, title, body } = requestData;
+    console.log('Parsed request data:', { user_id, title, body });
 
     if (!user_id || !title || !body) {
       return new Response(
@@ -99,7 +139,6 @@ serve(async (req) => {
       );
     }
 
-    // Set VAPID details with your specific email
     webpush.setVapidDetails(
       'mailto:arsenii.demydov@gmail.com',
       VAPID_PUBLIC_KEY,
