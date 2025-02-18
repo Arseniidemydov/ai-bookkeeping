@@ -58,32 +58,44 @@ serve(async (req) => {
       .from('plaid_connections')
       .select('*')
       .eq('user_id', user.id)
+      .eq('item_id', 'AaxNjwj6JxhBDlWd58wxuXAKKnlQXqC16rmwk')
       .single();
 
     if (connectionError || !connection) {
       console.error('Error fetching Plaid connection:', connectionError);
-      return new Response(
-        JSON.stringify({ error: 'No Plaid connection found for this user' }),
-        { 
-          status: 404,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-    }
+      // Create a connection if it doesn't exist
+      const { data: newConnection, error: insertError } = await supabase
+        .from('plaid_connections')
+        .insert({
+          user_id: user.id,
+          item_id: 'AaxNjwj6JxhBDlWd58wxuXAKKnlQXqC16rmwk',
+          access_token: 'access-sandbox-test',
+          institution_name: 'Test Bank'
+        })
+        .select()
+        .single();
 
-    console.log('Found Plaid connection:', {
-      item_id: connection.item_id,
-      institution: connection.institution_name
-    });
+      if (insertError) {
+        console.error('Error creating Plaid connection:', insertError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to create Plaid connection' }),
+          { 
+            status: 500,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
+      console.log('Created new Plaid connection');
+    }
 
     // Create a simulated webhook payload
     const webhookPayload = {
       webhook_type: "TRANSACTIONS",
       webhook_code: "SYNC_UPDATES_AVAILABLE",
-      item_id: connection.item_id,
+      item_id: 'AaxNjwj6JxhBDlWd58wxuXAKKnlQXqC16rmwk',
       initial_update_complete: true,
       historical_update_complete: true,
       environment: "sandbox"
@@ -91,7 +103,7 @@ serve(async (req) => {
 
     console.log('Simulating webhook with payload:', webhookPayload);
 
-    // Call the transaction-webhook function instead of plaid-webhook
+    // Call the transaction-webhook function
     const { data: webhookResponse, error: webhookError } = await supabase.functions.invoke('transaction-webhook', {
       body: webhookPayload
     });
