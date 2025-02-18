@@ -45,9 +45,18 @@ export function usePushNotifications() {
 
             console.log('Successfully stored push token');
             
-            // Test the notification system with proper request body formatting
+            // Test the notification system
             try {
               console.log('Sending test notification to user:', session.session.user.id);
+              
+              const notificationData = {
+                user_id: session.session.user.id,
+                title: 'Notifications Enabled',
+                body: 'You will now receive notifications from our app!'
+              };
+              
+              console.log('Sending notification data:', notificationData);
+              
               const { data: testData, error: testError } = await supabase.functions.invoke(
                 'send-push-notification',
                 {
@@ -55,11 +64,7 @@ export function usePushNotifications() {
                   headers: {
                     'Content-Type': 'application/json',
                   },
-                  body: {
-                    user_id: session.session.user.id,
-                    title: 'Notifications Enabled',
-                    body: 'You will now receive notifications from our app!'
-                  }
+                  body: notificationData
                 }
               );
 
