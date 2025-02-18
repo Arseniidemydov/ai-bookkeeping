@@ -5,7 +5,6 @@ import { Download, FileText } from "lucide-react";
 import { format } from "date-fns";
 import html2pdf from 'html2pdf.js';
 import { toast } from "sonner";
-import { TransactionImageUpload } from "./chat/TransactionImageUpload";
 
 interface ChatMessageProps {
   content: string;
@@ -19,26 +18,18 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  // First, protect dates by replacing them with a special token
-  let formattedText = text.replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '###DATE###$1\u2024$2\u2024$3###DATE###');
-  
-  // Apply other formatting
-  formattedText = formattedText
+  let formattedText = text
     .replace(/\\n/g, '\n')
     .replace(/(\d+\.)/g, '\n$1');
   
-  const segments = formattedText.split(/(\*\*.*?\*\*|###DATE###.*?###DATE###)/g);
+  const segments = formattedText.split(/(\*\*.*?\*\*)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
       const boldText = segment.slice(2, -2);
-      return <span key={index} className="font-semibold whitespace-nowrap">{boldText}</span>;
+      return <span key={index} className="font-semibold">{boldText}</span>;
     }
-    if (segment.startsWith('###DATE###') && segment.endsWith('###DATE###')) {
-      const dateText = segment.slice(10, -10);
-      return <span key={index} className="whitespace-nowrap">{dateText}</span>;
-    }
-    return <span key={index} className="whitespace-pre-line">{segment}</span>;
+    return <span key={index}>{segment}</span>;
   });
 };
 
@@ -49,6 +40,7 @@ const isHTML = (str: string) => {
 
 const downloadPDF = async (content: string) => {
   try {
+    // Create a temporary div to hold the HTML content
     const element = document.createElement('div');
     element.innerHTML = content;
     element.style.padding = '20px';
@@ -76,13 +68,16 @@ const downloadPDF = async (content: string) => {
       }
     };
 
+    // Convert to PDF
     await html2pdf().set(opt).from(element).save();
 
+    // Clean up
     document.body.removeChild(element);
     toast.success("Report downloaded as PDF");
   } catch (error) {
     console.error('Error generating PDF:', error);
     toast.error("Failed to generate PDF. Downloading as HTML instead.");
+    // Fallback to HTML download
     const blob = new Blob([content], { type: 'text/html' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -95,12 +90,8 @@ const downloadPDF = async (content: string) => {
   }
 };
 
-export function ChatMessage({ content, sender, file }: ChatMessageProps) {
+export function ChatMessage({ content, sender, timestamp, file }: ChatMessageProps) {
   const containsHTML = isHTML(content);
-  const showImageUpload = sender === "other" && (
-    content.includes("Income added") || 
-    content.includes("Expense added")
-  );
 
   return (
     <div
@@ -134,7 +125,7 @@ export function ChatMessage({ content, sender, file }: ChatMessageProps) {
             )}
           </div>
         )}
-        <div className="text-sm leading-relaxed">
+        <div className="text-sm leading-relaxed whitespace-pre-line">
           {containsHTML && sender === "other" ? (
             <div className="flex flex-col items-start gap-2">
               <div className="flex items-center gap-2 text-white/80">
@@ -155,7 +146,9 @@ export function ChatMessage({ content, sender, file }: ChatMessageProps) {
             formatBoldText(content)
           )}
         </div>
-        {showImageUpload && <TransactionImageUpload />}
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-white/60">{timestamp}</span>
+        </div>
       </div>
     </div>
   );

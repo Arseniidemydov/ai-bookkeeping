@@ -17,14 +17,9 @@ interface Message {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000;
-const ACTIVE_RUN_DELAY = 3000; // Wait 3 seconds before retrying if there's an active run
+const RETRY_DELAY = 2000; // Increased to 2 seconds
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const isActiveRunError = (error: any) => {
-  return error?.message?.includes('already has an active run');
-};
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -78,14 +73,6 @@ export function useChat() {
           });
 
           if (response.error) {
-            // Check if it's an active run error
-            if (isActiveRunError(response.error)) {
-              console.log('Active run detected, waiting before retry...');
-              await delay(ACTIVE_RUN_DELAY);
-              retries++;
-              continue;
-            }
-            
             console.error('Error from generate-response:', response.error);
             throw response.error;
           }
@@ -105,13 +92,8 @@ export function useChat() {
             throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
-          // If it's an active run error, use the specific delay
-          const waitTime = isActiveRunError(error) 
-            ? ACTIVE_RUN_DELAY 
-            : RETRY_DELAY * Math.pow(2, retries - 1);
-          
-          console.log(`Waiting ${waitTime}ms before retry...`);
-          await delay(waitTime);
+          // Wait before retrying with exponential backoff
+          await delay(RETRY_DELAY * Math.pow(2, retries - 1));
         }
       }
 

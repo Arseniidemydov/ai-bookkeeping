@@ -1,16 +1,15 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { subDays, subMonths, startOfDay, endOfDay, format, parseISO } from "date-fns";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { subDays, subMonths, startOfDay, endOfDay, format } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
-import { TransactionImageDialog } from "./TransactionImageDialog";
 
 type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
 interface Transaction {
@@ -28,21 +27,12 @@ interface FinancialMetric {
   transactions?: Transaction[];
 }
 
-interface GroupedTransactions {
-  month: string;
-  transactions: Transaction[];
-  isExpanded: boolean;
-}
-
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('month');
   const [selectedTransactions, setSelectedTransactions] = useState<Transaction[]>([]);
   const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
-  const [selectedImageTransaction, setSelectedImageTransaction] = useState<number | null>(null);
-  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-  const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -201,50 +191,6 @@ export function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    if (selectedTransactions.length > 0) {
-      const grouped = selectedTransactions.reduce((acc: GroupedTransactions[], transaction) => {
-        const monthKey = format(parseISO(transaction.date), 'MMMM yyyy');
-        const existingGroup = acc.find(g => g.month === monthKey);
-        
-        if (existingGroup) {
-          existingGroup.transactions.push(transaction);
-        } else {
-          acc.push({
-            month: monthKey,
-            transactions: [transaction],
-            isExpanded: true
-          });
-        }
-        
-        return acc;
-      }, []);
-
-      grouped.forEach(group => {
-        group.transactions.sort((a, b) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-      });
-
-      grouped.sort((a, b) => 
-        new Date(b.transactions[0].date).getTime() - 
-        new Date(a.transactions[0].date).getTime()
-      );
-
-      setGroupedTransactions(grouped);
-    }
-  }, [selectedTransactions]);
-
-  const toggleMonthExpansion = (monthKey: string) => {
-    setGroupedTransactions(prev => 
-      prev.map(group => 
-        group.month === monthKey 
-          ? { ...group, isExpanded: !group.isExpanded }
-          : group
-      )
-    );
-  };
-
   return <div className={cn("fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out", isExpanded ? "h-screen" : "h-64")}>
     <div className="p-4 h-full overflow-y-auto relative flex flex-col py-[22px]">
       <div className="flex justify-between items-center mb-4">
@@ -278,102 +224,48 @@ export function Dashboard() {
     </div>
 
     <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
-      <DialogContent className="sm:max-w-[800px] bg-gray-900/95 backdrop-blur-xl border-gray-800 text-white">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-white">{transactionType === 'income' ? 'Income' : 'Expense'} Transactions</DialogTitle>
+          <DialogTitle>{transactionType === 'income' ? 'Income' : 'Expense'} Transactions</DialogTitle>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto">
-          {groupedTransactions.map(group => (
-            <div key={group.month} className="mb-4">
-              <button
-                onClick={() => toggleMonthExpansion(group.month)}
-                className="w-full flex items-center justify-between p-3 bg-gray-800/50 rounded-lg mb-2 hover:bg-gray-800/70 transition-colors"
-              >
-                <span className="font-medium text-white">{group.month}</span>
-                {group.isExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
-              </button>
-              
-              {group.isExpanded && group.transactions.map(transaction => (
-                <div key={transaction.id} 
-                     className="flex items-center justify-between p-4 mb-2 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:bg-gray-800/50 transition-all">
-                  <div className="flex-1">
-                    <p className="font-medium text-white">{transaction.category}</p>
-                    <p className="text-sm text-gray-400">
-                      {format(new Date(transaction.date), 'MMM dd, yyyy')}
-                    </p>
-                    {transaction.description && (
-                      <p className="text-sm text-gray-500 mt-1">{transaction.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("font-semibold", 
-                      transactionType === 'income' ? "text-emerald-400" : "text-rose-400")}>
-                      {formatCurrency(transaction.amount)}
-                    </span>
-                    
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 hover:bg-gray-700/50"
-                      onClick={() => {
-                        setSelectedImageTransaction(transaction.id);
-                        setIsImageDialogOpen(true);
-                      }}
-                    >
-                      <Image className="h-4 w-4 text-gray-400" />
+          {selectedTransactions.map(transaction => <div key={transaction.id} className="flex items-center justify-between p-4 border-b border-gray-200 last:border-0">
+              <div className="flex-1">
+                <p className="font-medium">{transaction.category}</p>
+                <p className="text-sm text-gray-500">
+                  {format(new Date(transaction.date), 'MMM dd, yyyy')}
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className={cn("font-semibold", transactionType === 'income' ? "text-emerald-600" : "text-rose-600")}>
+                  {formatCurrency(transaction.amount)}
+                </span>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Trash2 className="h-4 w-4 text-gray-500" />
                     </Button>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-8 w-8 hover:bg-gray-700/50"
-                        >
-                          <Trash2 className="h-4 w-4 text-gray-400" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-gray-900 border-gray-800">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="text-white">Delete Transaction</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete this transaction? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDeleteTransaction(transaction.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-          {selectedTransactions.length === 0 && (
-            <p className="text-center text-gray-400 py-4">No transactions found</p>
-          )}
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this transaction? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id)}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>)}
+          {selectedTransactions.length === 0 && <p className="text-center text-gray-500 py-4">No transactions found</p>}
         </div>
       </DialogContent>
     </Dialog>
-
-    <TransactionImageDialog
-      isOpen={isImageDialogOpen}
-      onClose={() => {
-        setIsImageDialogOpen(false);
-        setSelectedImageTransaction(null);
-      }}
-      transactionId={selectedImageTransaction}
-    />
   </div>;
 }
