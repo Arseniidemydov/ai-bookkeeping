@@ -2,36 +2,39 @@
 self.addEventListener('push', function(event) {
   console.log('Push notification received:', event);
   
-  try {
+  if (event.data) {
     const data = event.data.json();
-    console.log('Parsed notification data:', data);
+    console.log('Push data:', data);
     
-    const options = {
-      body: data.body,
+    // Show the notification
+    const promiseChain = self.registration.showNotification(data.notification.title, {
+      body: data.notification.body,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      data: data.data || {},
-      requireInteraction: true,
+      vibrate: [100, 50, 100],
       actions: [
         {
           action: 'open',
-          title: 'Open'
+          title: 'Open App'
         }
-      ]
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(data.title, options)
-    );
-  } catch (error) {
-    console.error('Error showing notification:', error);
-    // If we can't parse the data, show a generic notification
-    event.waitUntil(
-      self.registration.showNotification('New Notification', {
-        body: 'You have a new notification',
-        icon: '/favicon.ico',
-      })
-    );
+      ],
+      data: data.notification
+    });
+    
+    event.waitUntil(promiseChain);
+    
+    // Also send message to the app
+    if (self.clients) {
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'NOTIFICATION',
+            title: data.notification.title,
+            body: data.notification.body
+          });
+        });
+      });
+    }
   }
 });
 
@@ -39,31 +42,28 @@ self.addEventListener('notificationclick', function(event) {
   console.log('Notification click received:', event);
   
   event.notification.close();
-
+  
+  // This looks to see if the current window is already open and focuses if it is
   event.waitUntil(
-    clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
+    self.clients.matchAll({
+      type: "window"
     })
     .then(function(clientList) {
       if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
-          }
-        }
-        return client.focus();
+        return clientList[0].focus();
       }
-      return clients.openWindow('/');
+      return self.clients.openWindow("/");
     })
   );
 });
 
-self.addEventListener('install', (event) => {
-  console.log('Service Worker installed');
+// Handle installation and activation
+self.addEventListener('install', function(event) {
+  console.log('Service Worker installing.');
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  console.log('Service Worker activated');
+self.addEventListener('activate', function(event) {
+  console.log('Service Worker activating.');
+  event.waitUntil(self.clients.claim());
 });

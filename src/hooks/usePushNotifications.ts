@@ -140,9 +140,14 @@ export function usePushNotifications() {
             
             if ('serviceWorker' in navigator) {
               try {
-                // Register or get existing service worker
-                const registration = await navigator.serviceWorker.register('/sw.js');
+                // Register service worker
+                const registration = await navigator.serviceWorker.register('/sw.js', {
+                  scope: '/'
+                });
                 console.log('Service Worker registered successfully:', registration);
+
+                // Wait for the service worker to be ready
+                await navigator.serviceWorker.ready;
                 
                 // First check for existing subscription
                 const existingSubscription = await registration.pushManager.getSubscription();
@@ -164,6 +169,16 @@ export function usePushNotifications() {
                 console.log('New push subscription created:', token);
                 setPushToken(token);
                 await storeToken(token);
+
+                // Set up message listener for the service worker
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                  console.log('Received message from service worker:', event.data);
+                  if (event.data.type === 'NOTIFICATION') {
+                    toast.info(event.data.title, {
+                      description: event.data.body
+                    });
+                  }
+                });
               } catch (error) {
                 console.error('Service Worker registration failed:', error);
                 toast.error('Failed to register Service Worker');
