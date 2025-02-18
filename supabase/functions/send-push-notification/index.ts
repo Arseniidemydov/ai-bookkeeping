@@ -19,19 +19,24 @@ serve(async (req) => {
     console.log('Request method:', req.method);
     console.log('Request headers:', Object.fromEntries(req.headers.entries()));
 
-    // Get the request body
     let requestData;
     try {
-      // Get the request body data directly from the Request object
-      const body = await req.json();
-      console.log('Parsed request body:', body);
-      requestData = body;
+      // Parse the request body and log it
+      const rawBody = await req.text();
+      console.log('Raw request body:', rawBody);
+      
+      if (!rawBody) {
+        throw new Error('Empty request body');
+      }
+
+      requestData = JSON.parse(rawBody);
+      console.log('Parsed request data:', requestData);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError);
+      console.error('Error parsing request body:', parseError);
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Invalid JSON in request body',
+          error: 'Invalid request body format',
           details: parseError.message
         }),
         { 
@@ -42,13 +47,13 @@ serve(async (req) => {
     }
 
     const { user_id, title, body } = requestData;
-    console.log('Extracted data:', { user_id, title, body });
-
+    
     if (!user_id || !title || !body) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Missing required fields: user_id, title, or body'
+          error: 'Missing required fields',
+          received: { user_id, title, body }
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
