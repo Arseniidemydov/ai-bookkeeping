@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 import { 
@@ -83,41 +84,35 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
   if (isWebPushSubscription(token)) {
     console.log('Sending web push notification using WebPush subscription');
     const message = {
-      token: typeof token === 'string' ? token : JSON.stringify(token),
-      notification: {
-        title,
-        body
-      },
-      webpush: {
-        headers: {
-          Urgency: 'high',
-          TTL: '86400'
-        },
+      webPush: {
         notification: {
           title,
           body,
           icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          vibrate: [200, 100, 200],
-          requireInteraction: false,
-          actions: [
-            {
-              action: 'open_app',
-              title: 'Open App'
-            }
-          ],
-          tag: 'message',
-          renotify: true,
-          timestamp: Date.now()
+          badge: '/favicon.ico'
         },
-        fcmOptions: {
+        headers: {
+          Urgency: 'high',
+          TTL: '86400'
+        },
+        data: {
+          notification: {
+            title,
+            body,
+            data: {
+              url: '/'
+            }
+          }
+        },
+        fcm_options: {
           link: '/'
         }
-      }
+      },
+      tokens: [JSON.stringify(token)]
     };
 
     try {
-      const response = await messaging.send(message);
+      const response = await messaging.sendMulticast(message);
       console.log('Web push notification sent successfully:', response);
       return response;
     } catch (error) {

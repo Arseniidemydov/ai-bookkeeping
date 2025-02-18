@@ -1,69 +1,69 @@
 
 self.addEventListener('push', function(event) {
-  console.log('[Service Worker] Push Received.');
-  console.log('[Service Worker] Push had this data:', event.data?.text());
-
-  try {
-    const data = event.data?.json() ?? {};
-    const notification = data.notification || data;
+  console.log('Push notification received:', event);
+  
+  if (event.data) {
+    const data = event.data.json();
+    console.log('Push data:', data);
     
-    const options = {
-      body: notification.body,
+    // Show the notification
+    const promiseChain = self.registration.showNotification(data.notification.title, {
+      body: data.notification.body,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      vibrate: [200, 100, 200],
-      tag: 'message',
-      renotify: true,
-      requireInteraction: false,
+      vibrate: [100, 50, 100],
       actions: [
         {
-          action: 'open_app',
+          action: 'open',
           title: 'Open App'
         }
       ],
-      data: {
-        url: '/',
-        ...notification.data
-      }
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(notification.title, options)
-    );
-  } catch (error) {
-    console.error('[Service Worker] Error showing notification:', error);
+      data: data.notification
+    });
+    
+    event.waitUntil(promiseChain);
+    
+    // Also send message to the app
+    if (self.clients) {
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'NOTIFICATION',
+            title: data.notification.title,
+            body: data.notification.body
+          });
+        });
+      });
+    }
   }
 });
 
 self.addEventListener('notificationclick', function(event) {
-  console.log('[Service Worker] Notification click received.');
-
+  console.log('Notification click received:', event);
+  
   event.notification.close();
-
-  const urlToOpen = event.notification.data?.url || '/';
-
+  
+  // This looks to see if the current window is already open and focuses if it is
   event.waitUntil(
-    clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
+    self.clients.matchAll({
+      type: "window"
     })
     .then(function(clientList) {
-      for (const client of clientList) {
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
-        }
+      if (clientList.length > 0) {
+        return clientList[0].focus();
       }
-      return clients.openWindow(urlToOpen);
+      return self.clients.openWindow("/");
     })
   );
 });
 
+// Handle installation and activation
 self.addEventListener('install', function(event) {
-  console.log('[Service Worker] Installing Service Worker...');
+  console.log('Service Worker installing.');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function(event) {
-  console.log('[Service Worker] Activating Service Worker...');
+  console.log('Service Worker activating.');
   event.waitUntil(self.clients.claim());
 });
