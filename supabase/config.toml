@@ -1,8 +1,10 @@
 
 project_id = "pqfawxyxvjocxfhsjdec"
 
+[functions]
 [functions.generate-response]
 verify_jwt = false
+import_map = "./import_map.json"
 
 [storage]
 [storage.buckets]
@@ -10,4 +12,3 @@ verify_jwt = false
 public = true
 file_size_limit = "10MB"
 allowed_mime_types = ["image/*"]
-
