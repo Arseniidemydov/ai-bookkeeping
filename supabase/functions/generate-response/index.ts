@@ -9,6 +9,8 @@ const corsHeaders = {
 
 const ASSISTANT_ID = "asst_wn94DpzGVJKBFLR4wkh7btD2";
 const OPENAI_API_BASE = "https://api.openai.com/v1";
+const CANCEL_CHECK_RETRIES = 3;
+const CANCEL_CHECK_DELAY = 1000;
 
 async function checkResponseStatus(response: Response) {
   if (!response.ok) {
@@ -20,6 +22,24 @@ async function checkResponseStatus(response: Response) {
     );
   }
   return response;
+}
+
+async function waitForRunCancellation(threadId: string, runId: string, headers: Record<string, string>) {
+  for (let i = 0; i < CANCEL_CHECK_RETRIES; i++) {
+    const response = await fetch(
+      `${OPENAI_API_BASE}/threads/${threadId}/runs/${runId}`,
+      { headers }
+    );
+    const runStatus = await response.json();
+    
+    if (runStatus.status === 'cancelled') {
+      console.log(`Run ${runId} successfully cancelled`);
+      return true;
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, CANCEL_CHECK_DELAY));
+  }
+  return false;
 }
 
 async function checkAndCancelActiveRuns(threadId: string, headers: Record<string, string>) {
@@ -34,8 +54,14 @@ async function checkAndCancelActiveRuns(threadId: string, headers: Record<string
       ['in_progress', 'queued'].includes(run.status)
     );
 
-    for (const run of activeRuns || []) {
-      console.log(`Cancelling active run: ${run.id}`);
+    if (!activeRuns?.length) {
+      return;
+    }
+
+    console.log(`Found ${activeRuns.length} active runs to cancel`);
+    
+    for (const run of activeRuns) {
+      console.log(`Attempting to cancel run: ${run.id}`);
       await fetch(
         `${OPENAI_API_BASE}/threads/${threadId}/runs/${run.id}/cancel`,
         { 
@@ -43,9 +69,15 @@ async function checkAndCancelActiveRuns(threadId: string, headers: Record<string
           headers 
         }
       );
+      
+      const cancelled = await waitForRunCancellation(threadId, run.id, headers);
+      if (!cancelled) {
+        throw new Error(`Failed to cancel run ${run.id}`);
+      }
     }
   } catch (error) {
     console.error('Error checking/cancelling active runs:', error);
+    throw error; // Propagate the error to handle it in the main flow
   }
 }
 
