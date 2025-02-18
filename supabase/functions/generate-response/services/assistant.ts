@@ -5,8 +5,8 @@ const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!
 });
 
-// Use a consistent assistant ID
-const ASSISTANT_ID = "asst_qICXHZAD5nR2dn5RRMJOmgGY";
+// Use your specific assistant ID
+const ASSISTANT_ID = "asst_wn94DpzGVJKBFLR4wkh7btD2";
 
 export async function createThread() {
   const thread = await openai.beta.threads.create();
