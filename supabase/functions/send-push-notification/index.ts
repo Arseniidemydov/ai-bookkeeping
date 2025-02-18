@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import * as webpush from "https://deno.land/x/web_push@v0.3.0/mod.ts";
+import webpush from 'https://esm.sh/web-push@3.6.7'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,8 +99,8 @@ serve(async (req) => {
       );
     }
 
-    // Initialize web push
-    await webpush.setVAPIDDetails(
+    // Set VAPID details
+    webpush.setVapidDetails(
       'mailto:test@example.com',
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
@@ -115,10 +115,12 @@ serve(async (req) => {
         const subscription = JSON.parse(token);
         
         const pushPayload = JSON.stringify({
-          title,
-          body,
-          icon: '/favicon.ico',
-          timestamp: new Date().toISOString()
+          notification: {
+            title,
+            body,
+            icon: '/favicon.ico',
+            timestamp: new Date().toISOString()
+          }
         });
 
         await webpush.sendNotification(subscription, pushPayload);
