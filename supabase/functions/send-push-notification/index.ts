@@ -57,22 +57,41 @@ async function removeInvalidToken(token: string) {
   }
 }
 
-function extractFCMToken(subscription: any): string | null {
+function parseToken(token: string) {
   try {
-    // If it's already an FCM token
-    if (typeof subscription === 'string') {
-      return subscription;
+    return JSON.parse(token);
+  } catch {
+    return token;
+  }
+}
+
+function extractFCMToken(rawToken: string): string | null {
+  try {
+    const token = parseToken(rawToken);
+    console.log('Token type:', typeof token);
+
+    // If it's a web push subscription object
+    if (typeof token === 'object' && token !== null) {
+      console.log('Processing web push subscription');
+      if (token.endpoint?.includes('fcm.googleapis.com/fcm/send')) {
+        const fcmToken = token.endpoint.split('/').pop();
+        console.log('Extracted FCM token from endpoint:', fcmToken);
+        return fcmToken || null;
+      }
+      // For web push, we need the auth token
+      if (token.keys?.auth) {
+        console.log('Using auth token from web push subscription');
+        return token.keys.auth;
+      }
     }
 
-    // If it's a web push subscription
-    const subscriptionObj = typeof subscription === 'string' 
-      ? JSON.parse(subscription) 
-      : subscription;
-
-    if (subscriptionObj.endpoint?.includes('fcm.googleapis.com')) {
-      return subscriptionObj.endpoint.split('/').pop() || null;
+    // If it's a plain string token
+    if (typeof token === 'string') {
+      console.log('Using direct FCM token');
+      return token;
     }
 
+    console.log('No valid token format found');
     return null;
   } catch (error) {
     console.error('Error extracting FCM token:', error);
@@ -102,7 +121,7 @@ serve(async (req) => {
       throw new Error('Could not extract valid FCM token');
     }
 
-    console.log('Extracted FCM token:', fcmToken.substring(0, 10) + '...');
+    console.log('Using FCM token:', fcmToken.substring(0, 10) + '...');
 
     const messaging = getMessaging(firebaseApp);
     
@@ -129,6 +148,9 @@ serve(async (req) => {
         notification: {
           icon: '/favicon.ico',
           badge: '/favicon.ico'
+        },
+        fcm_options: {
+          link: window.location.origin
         }
       }
     };
@@ -147,12 +169,13 @@ serve(async (req) => {
     } catch (error) {
       console.error('Firebase messaging error:', error);
       
-      if (error.errorInfo?.code === 'messaging/registration-token-not-registered') {
+      if (error.errorInfo?.code === 'messaging/registration-token-not-registered' ||
+          error.errorInfo?.code === 'messaging/invalid-argument') {
         await removeInvalidToken(payload.token);
         return new Response(
           JSON.stringify({ 
-            error: 'Token expired',
-            code: 'TOKEN_EXPIRED',
+            error: 'Token invalid or expired',
+            code: 'TOKEN_INVALID',
             message: 'Push notification token needs to be refreshed'
           }),
           { headers: corsHeaders }
