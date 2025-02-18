@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { initializeApp, getApps, credential } from 'https://esm.sh/@firebase/app@0.9.29';
-import { getMessaging } from 'https://esm.sh/@firebase/messaging@0.12.5';
+import { initializeApp, credential, getApps } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-admin-app.js";
+import { getMessaging } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-admin-messaging.js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
