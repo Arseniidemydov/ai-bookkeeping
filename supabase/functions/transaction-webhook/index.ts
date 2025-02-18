@@ -30,7 +30,7 @@ serve(async (req) => {
       .from('plaid_connections')
       .select('user_id')
       .eq('item_id', payload.item_id)
-      .single();
+      .maybeSingle();
 
     if (connectionError || !connection) {
       console.error('Error finding Plaid connection:', connectionError);
@@ -39,17 +39,28 @@ serve(async (req) => {
 
     console.log('Processing webhook for user:', connection.user_id);
 
+    // Get the next ID for the transaction
+    const { data: maxIdResult, error: maxIdError } = await supabase
+      .from('transactions')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .single();
+
+    const nextId = maxIdResult ? maxIdResult.id + 1 : 1;
+
     // For testing purposes, create a mock transaction
     const mockTransaction = {
+      id: nextId,
       user_id: connection.user_id,
       amount: -50.00,
       description: "Test Transaction",
       category: "Food",
-      date: new Date().toISOString(),
-      plaid_transaction_id: `test-${Date.now()}`,
-      merchant_name: "Test Merchant",
+      date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
       type: "expense"
     };
+
+    console.log('Attempting to create transaction:', mockTransaction);
 
     // Insert the mock transaction
     const { data: transaction, error: transactionError } = await supabase
@@ -60,7 +71,7 @@ serve(async (req) => {
 
     if (transactionError) {
       console.error('Error creating transaction:', transactionError);
-      throw new Error('Failed to create transaction');
+      throw new Error(`Failed to create transaction: ${transactionError.message}`);
     }
 
     console.log('Created mock transaction:', transaction);
@@ -83,10 +94,11 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
-        details: error.stack
+        details: error.stack,
+        timestamp: new Date().toISOString()
       }),
       { 
-        status: 500,
+        status: 200, // Changed to 200 to prevent cascade failure
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
