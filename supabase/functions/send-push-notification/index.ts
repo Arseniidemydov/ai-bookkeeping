@@ -99,9 +99,9 @@ serve(async (req) => {
       );
     }
 
-    // Set VAPID details with a proper URL format
+    // Set VAPID details with your specific email
     webpush.setVapidDetails(
-      'https://example.com',
+      'mailto:arsenii.demydov@gmail.com',
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
     );
