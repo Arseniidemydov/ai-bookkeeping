@@ -53,22 +53,28 @@ export const ChatContainer = () => {
             body: `Simulating webhook for Item ID: ${itemId}`
           };
 
-          console.log('Sending notification with data:', notificationData);
+          console.log('Preparing to send notification with data:', notificationData);
 
-          const { error: notificationError } = await supabase.functions.invoke(
+          const response = await supabase.functions.invoke(
             'send-push-notification',
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(notificationData) // Explicitly stringify the body
+              body: notificationData // Remove JSON.stringify, let supabase handle it
             }
           );
 
-          if (notificationError) {
-            console.error('Error sending notification:', notificationError);
+          console.log('Notification response:', response);
+
+          if (response.error) {
+            console.error('Error sending notification:', response.error);
+            toast.error('Failed to send notification');
+          } else {
+            console.log('Notification sent successfully:', response.data);
           }
         } catch (error) {
           console.error('Error sending notification:', error);
+          toast.error('Failed to send notification');
         }
 
         // Simulate webhook
