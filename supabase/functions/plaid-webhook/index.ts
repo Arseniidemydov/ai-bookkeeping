@@ -60,6 +60,34 @@ async function syncTransactions(accessToken: string, userId: string) {
         throw insertError;
       }
       console.log(`Successfully inserted ${added.length} new transactions`);
+
+      // Get user's device tokens for notification
+      const { data: deviceTokens, error: tokenError } = await supabase
+        .from('device_tokens')
+        .select('token')
+        .eq('user_id', userId);
+
+      if (tokenError) {
+        console.error('Error fetching device tokens:', tokenError);
+      } else if (deviceTokens && deviceTokens.length > 0) {
+        console.log(`Found ${deviceTokens.length} device tokens for user:`, userId);
+        
+        // Send notification for each device token
+        for (const { token } of deviceTokens) {
+          try {
+            const notificationResponse = await supabase.functions.invoke('send-push-notification', {
+              body: {
+                token,
+                title: 'New Transactions Available',
+                body: `${added.length} new transaction${added.length === 1 ? '' : 's'} have been imported.`
+              }
+            });
+            console.log('Push notification response:', notificationResponse);
+          } catch (error) {
+            console.error('Error sending push notification:', error);
+          }
+        }
+      }
     }
 
     // Handle modified transactions
@@ -110,10 +138,6 @@ async function syncTransactions(accessToken: string, userId: string) {
 }
 
 serve(async (req) => {
-  // Log the incoming request method and headers for debugging
-  console.log('Received request method:', req.method);
-  console.log('Received request headers:', Object.fromEntries(req.headers.entries()));
-
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -157,41 +181,6 @@ serve(async (req) => {
 
       // Sync transactions using the access token
       await syncTransactions(connectionData.access_token, connectionData.user_id);
-
-      // Get the user's device tokens for notification
-      const { data: tokens, error: tokensError } = await supabase
-        .from('device_tokens')
-        .select('token')
-        .eq('user_id', connectionData.user_id);
-
-      if (tokensError) {
-        console.error('Error fetching device tokens:', tokensError);
-        throw tokensError;
-      }
-
-      console.log('Found device tokens:', tokens);
-
-      if (tokens && tokens.length > 0) {
-        console.log('Sending push notification for tokens:', tokens.map(t => t.token));
-        // Send push notification
-        const notificationResponse = await supabase.functions.invoke('send-push-notification', {
-          body: {
-            tokens: tokens.map(t => t.token),
-            title: 'New Transactions Available',
-            body: `New transactions detected in your ${connectionData.institution_name} account`,
-            data: {
-              type: 'TRANSACTIONS_UPDATE',
-              institution: connectionData.institution_name
-            }
-          }
-        });
-
-        console.log('Push notification response:', notificationResponse);
-      } else {
-        console.log('No device tokens found for user:', connectionData.user_id);
-      }
-    } else {
-      console.log('Received non-transaction webhook or different webhook code:', webhookData.webhook_type, webhookData.webhook_code);
     }
 
     return new Response(
