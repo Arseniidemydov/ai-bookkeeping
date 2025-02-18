@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, CreditCard, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -82,8 +82,49 @@ export function Dashboard() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/auth');
+    try {
+      await supabase.auth.signOut();
+      navigate('/auth');
+      toast.success('Logged out successfully');
+    } catch (error) {
+      toast.error('Failed to log out');
+      console.error('Error logging out:', error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error('No user session found');
+        return;
+      }
+
+      const tables = ['transactions', 'plaid_connections', 'device_tokens', 'chat_messages'];
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('user_id', session.session.user.id);
+        
+        if (error) {
+          console.error(`Error deleting from ${table}:`, error);
+        }
+      }
+
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(
+        session.session.user.id
+      );
+
+      if (deleteError) throw deleteError;
+
+      await supabase.auth.signOut();
+      navigate('/auth');
+      toast.success('Account deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete account');
+      console.error('Error deleting account:', error);
+    }
   };
 
   const handleDeleteTransaction = async (transactionId: number) => {
@@ -220,6 +261,22 @@ export function Dashboard() {
     }
   });
 
+  const { data: plaidConnections } = useQuery({
+    queryKey: ['plaid-connections'],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return [];
+
+      const { data, error } = await supabase
+        .from('plaid_connections')
+        .select('*')
+        .eq('user_id', session.session.user.id);
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
   useEffect(() => {
     const channel = supabase.channel('transactions-changes').on('postgres_changes', {
       event: '*',
@@ -341,25 +398,91 @@ export function Dashboard() {
           </div>)}
       </div>
 
-      {isExpanded && <div className="mt-auto pt-4 flex justify-center gap-4">
-        <PlaidLinkButton />
-        <Button 
-          variant="outline"
-          onClick={sendTestNotification}
-          className="w-full max-w-[200px] flex items-center justify-center gap-2"
-        >
-          <Bell className="h-4 w-4" />
-          Test Notification
-        </Button>
-        <Button 
-          variant="destructive" 
-          onClick={handleLogout} 
-          className="w-full max-w-[200px] flex items-center justify-center gap-2"
-        >
-          <LogOut className="w-4 h-4" />
-          Log out
-        </Button>
-      </div>}
+      {isExpanded && (
+        <>
+          {plaidConnections && plaidConnections.length > 0 && (
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <h3 className="text-sm font-medium text-white/60 mb-2">Connected Bank Accounts</h3>
+              <div className="grid gap-2">
+                {plaidConnections.map((connection) => (
+                  <div
+                    key={connection.id}
+                    className="flex items-center gap-2 p-3 bg-white/5 rounded-lg"
+                  >
+                    <CreditCard className="w-4 h-4 text-blue-400" />
+                    <span className="text-white">
+                      {connection.institution_name || 'Connected Bank Account'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-auto pt-4 flex flex-col md:flex-row justify-center gap-4">
+            <PlaidLinkButton />
+            <Button 
+              variant="outline"
+              onClick={sendTestNotification}
+              className="w-full max-w-[200px] flex items-center justify-center gap-2"
+            >
+              <Bell className="h-4 w-4" />
+              Test Notification
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleLogout} 
+              className="w-full max-w-[200px] flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Log out
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="destructive" 
+                  className="w-full max-w-[200px] flex items-center justify-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Account
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-900 border-gray-800">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-400">
+                    <div className="flex flex-col gap-2">
+                      <p>Are you absolutely sure you want to delete your account? This action cannot be undone.</p>
+                      <div className="flex items-start gap-2 p-3 bg-red-950/50 border border-red-900/50 rounded-lg mt-2">
+                        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                        <div className="text-sm text-red-200">
+                          <p className="font-medium mb-1">This will:</p>
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Delete all your transactions</li>
+                            <li>Remove all bank connections</li>
+                            <li>Delete all your chat messages</li>
+                            <li>Permanently delete your account</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDeleteAccount}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete Account
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </>
+      )}
     </div>
 
     <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
