@@ -42,9 +42,10 @@ export function usePushNotifications() {
               toast.error('Failed to register device for notifications');
             } else {
               console.log('Successfully stored push token');
-              // Test the notification system
+              
+              // Test the notification system with better error handling
               try {
-                const response = await supabase.functions.invoke('send-push-notification', {
+                const { data, error: fnError } = await supabase.functions.invoke('send-push-notification', {
                   body: {
                     user_id: session.session.user.id,
                     title: 'Notifications Enabled',
@@ -52,17 +53,18 @@ export function usePushNotifications() {
                   }
                 });
 
-                if (response.error) {
-                  throw response.error;
+                if (fnError) {
+                  console.error('Error sending test notification:', fnError);
+                  toast.error('Failed to send test notification');
+                  return;
                 }
 
-                console.log('Test notification sent:', response);
+                console.log('Test notification sent:', data);
+                toast.success('Successfully registered for notifications');
               } catch (error) {
                 console.error('Error sending test notification:', error);
                 toast.error('Failed to send test notification');
               }
-              
-              toast.success('Successfully registered for notifications');
             }
           }
         }

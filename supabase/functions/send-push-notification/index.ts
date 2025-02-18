@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import webpush from 'https://esm.sh/web-push@3.6.7'
+import * as webpush from "https://deno.land/x/web_push@v0.3.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +20,16 @@ serve(async (req) => {
     const { user_id, title, body } = requestData;
 
     if (!user_id || !title || !body) {
-      throw new Error('Missing required fields: user_id, title, or body');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Missing required fields: user_id, title, or body'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      );
     }
 
     // Initialize Supabase client
@@ -28,7 +37,16 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase configuration');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Missing Supabase configuration'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      );
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -40,23 +58,50 @@ serve(async (req) => {
       .eq('user_id', user_id);
 
     if (tokenError) {
-      throw new Error(`Failed to fetch device tokens: ${tokenError.message}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Failed to fetch device tokens: ${tokenError.message}`
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      );
     }
 
     if (!tokens || tokens.length === 0) {
-      throw new Error('No device tokens found for user');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'No device tokens found for user'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404
+        }
+      );
     }
 
     const VAPID_PUBLIC_KEY = 'BKS0hAdxmnZePXzcxhACUDE1jBHYMm572krHs81Eu8t--3et5PYs_H9JrqG1g5_Us3eq12jyH1dhnWs8sk5VsmA';
     const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
     if (!VAPID_PRIVATE_KEY) {
-      throw new Error('VAPID_PRIVATE_KEY is not set');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'VAPID_PRIVATE_KEY is not set'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      );
     }
 
-    // Set VAPID details
-    webpush.setVapidDetails(
-      'mailto:example@yourdomain.org',
+    // Initialize web push
+    await webpush.setVAPIDDetails(
+      'mailto:test@example.com',
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
     );
@@ -69,17 +114,14 @@ serve(async (req) => {
       try {
         const subscription = JSON.parse(token);
         
-        const payload = JSON.stringify({
-          notification: {
-            title,
-            body,
-            icon: '/favicon.ico',
-            timestamp: new Date().toISOString()
-          }
+        const pushPayload = JSON.stringify({
+          title,
+          body,
+          icon: '/favicon.ico',
+          timestamp: new Date().toISOString()
         });
 
-        const result = await webpush.sendNotification(subscription, payload);
-        console.log('Push sent successfully:', result);
+        await webpush.sendNotification(subscription, pushPayload);
         results.push({ success: true, subscription: subscription.endpoint });
       } catch (error) {
         console.error('Failed to send notification:', error);
@@ -88,7 +130,6 @@ serve(async (req) => {
           subscription: token ? JSON.parse(token).endpoint : 'unknown'
         });
 
-        // Remove invalid subscriptions
         if (error.statusCode === 404 || error.statusCode === 410) {
           try {
             await supabase
@@ -101,11 +142,6 @@ serve(async (req) => {
           }
         }
       }
-    }
-
-    // If all notifications failed, throw an error
-    if (errors.length > 0 && errors.length === tokens.length) {
-      throw new Error('Failed to send all notifications: ' + JSON.stringify(errors));
     }
 
     return new Response(
