@@ -395,7 +395,7 @@ export function Dashboard() {
           </button>)}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
         {visibleMetrics?.map(metric => <div key={metric.label} onClick={() => handleMetricClick(metric)} className={cn("p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80", metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50", metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50", metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50", metric.type === 'net' && "bg-blue-950/30 border-blue-800/50")}>
             <p className="text-sm font-medium text-white/60 mb-2">{metric.label}</p>
             <p className={cn("text-lg font-semibold", metric.type === 'income' && "text-emerald-400", metric.type === 'expense' && "text-rose-400", metric.type === 'tax' && "text-amber-400", metric.type === 'net' && "text-blue-400")}>
@@ -405,7 +405,7 @@ export function Dashboard() {
       </div>
 
       {isExpanded && (
-        <div className="mt-auto space-y-4">
+        <div className="space-y-2">
           <div className="border-t border-white/10 pt-4">
             {plaidConnections && plaidConnections.length > 0 && (
               <>
