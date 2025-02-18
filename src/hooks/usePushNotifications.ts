@@ -122,8 +122,8 @@ export function usePushNotifications() {
             .from('device_tokens')
             .insert({
               user_id: session.session.user.id,
-              token: token,
-              last_used: new Date().toISOString()
+              token: token
+              // created_at and updated_at will be automatically set by Supabase
             });
 
           if (error) {
@@ -134,10 +134,12 @@ export function usePushNotifications() {
             toast.success('Successfully registered for notifications');
           }
         } else {
-          // Update last_used timestamp for existing token
+          // Update timestamp for existing token
           const { error } = await supabase
             .from('device_tokens')
-            .update({ last_used: new Date().toISOString() })
+            .update({
+              updated_at: new Date().toISOString()
+            })
             .eq('user_id', session.session.user.id)
             .eq('token', token);
 
