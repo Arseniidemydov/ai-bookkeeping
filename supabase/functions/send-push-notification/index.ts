@@ -12,12 +12,19 @@ const corsHeaders = {
 
 // Initialize Firebase Admin if not already initialized
 if (getApps().length === 0) {
-  const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT') || '{}');
-  
-  initializeApp({
-    credential: cert(serviceAccount),
-    projectId: "ai-bookeeping-app"
-  });
+  try {
+    const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT') || '{}');
+    console.log('Initializing Firebase with project:', serviceAccount.project_id);
+    
+    initializeApp({
+      credential: cert(serviceAccount),
+      // Use project_id from the service account credentials
+      projectId: serviceAccount.project_id
+    });
+  } catch (error) {
+    console.error('Error initializing Firebase:', error);
+    throw error;
+  }
 }
 
 serve(async (req) => {
