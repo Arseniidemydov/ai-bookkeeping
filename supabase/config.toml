@@ -10,6 +10,9 @@ verify_jwt = false
 [functions.simulate-plaid-webhook]
 verify_jwt = false
 
+[functions.transaction-webhook]
+verify_jwt = false
+
 [functions.send-push-notification]
 verify_jwt = false
 

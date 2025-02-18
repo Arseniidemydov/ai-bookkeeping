@@ -1,82 +1,97 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
-    const payload = await req.json()
-    const transaction = payload.record
-    const userId = transaction.user_id
+    const payload = await req.json();
+    console.log('Received webhook payload:', payload);
 
-    // Get user's device token
-    const { data: deviceToken, error: tokenError } = await supabaseClient
-      .from('device_tokens')
-      .select('token')
-      .eq('user_id', userId)
-      .single()
-
-    if (tokenError || !deviceToken) {
-      throw new Error('No device token found for user')
+    if (!payload.item_id) {
+      throw new Error('No item_id in webhook payload');
     }
 
-    // Format the transaction amount
-    const amount = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(Math.abs(transaction.amount))
+    // Get the Plaid connection
+    const { data: connection, error: connectionError } = await supabase
+      .from('plaid_connections')
+      .select('user_id')
+      .eq('item_id', payload.item_id)
+      .single();
 
-    // Send push notification
-    const response = await fetch(
-      `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`,
-      {
-        method: 'POST',
+    if (connectionError || !connection) {
+      console.error('Error finding Plaid connection:', connectionError);
+      throw new Error('No Plaid connection found for this item_id');
+    }
+
+    console.log('Processing webhook for user:', connection.user_id);
+
+    // For testing purposes, create a mock transaction
+    const mockTransaction = {
+      user_id: connection.user_id,
+      amount: -50.00,
+      description: "Test Transaction",
+      category: "Food",
+      date: new Date().toISOString(),
+      plaid_transaction_id: `test-${Date.now()}`,
+      merchant_name: "Test Merchant",
+      type: "expense"
+    };
+
+    // Insert the mock transaction
+    const { data: transaction, error: transactionError } = await supabase
+      .from('transactions')
+      .insert([mockTransaction])
+      .select()
+      .single();
+
+    if (transactionError) {
+      console.error('Error creating transaction:', transactionError);
+      throw new Error('Failed to create transaction');
+    }
+
+    console.log('Created mock transaction:', transaction);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Webhook processed successfully',
+        transaction: transaction
+      }),
+      { 
         headers: {
+          ...corsHeaders,
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         },
-        body: JSON.stringify({
-          tokens: [deviceToken.token],
-          title: 'New Transaction',
-          body: `${transaction.type === 'expense' ? 'Expense' : 'Income'}: ${amount}`,
-          data: {
-            transactionId: transaction.id.toString(),
-          },
-        }),
       }
-    )
-
-    if (!response.ok) {
-      throw new Error('Failed to send push notification')
-    }
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
+    );
   } catch (error) {
+    console.error('Error in transaction-webhook:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
-    )
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        details: error.stack
+      }),
+      { 
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   }
-})
+});
