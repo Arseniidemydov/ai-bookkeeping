@@ -42,7 +42,7 @@ serve(async (req) => {
     const headers = {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v2'  // Updated to v2
+      'OpenAI-Beta': 'assistants=v2'
     };
 
     // Create or retrieve thread
@@ -53,7 +53,11 @@ serve(async (req) => {
       } else {
         const response = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads`, {
           method: 'POST',
-          headers
+          headers: {
+            'Authorization': `Bearer ${openAIApiKey}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2'
+          }
         }));
         const thread = await response.json();
         if (!thread.id) throw new Error('No thread ID received from OpenAI');
@@ -69,7 +73,11 @@ serve(async (req) => {
     try {
       const messageResponse = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads/${threadId}/messages`, {
         method: 'POST',
-        headers,
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v2'
+        },
         body: JSON.stringify({
           role: "user",
           content: fileUrl ? `${prompt}\nImage URL: ${fileUrl}` : prompt
@@ -87,7 +95,11 @@ serve(async (req) => {
     try {
       const runResponse = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads/${threadId}/runs`, {
         method: 'POST',
-        headers,
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v2'
+        },
         body: JSON.stringify({
           assistant_id: ASSISTANT_ID
         })
@@ -110,7 +122,13 @@ serve(async (req) => {
       try {
         const statusResponse = await checkResponseStatus(await fetch(
           `${OPENAI_API_BASE}/threads/${threadId}/runs/${run.id}`,
-          { headers }
+          { 
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2'
+            }
+          }
         ));
         runStatus = await statusResponse.json();
         
@@ -142,7 +160,13 @@ serve(async (req) => {
       try {
         const messagesResponse = await checkResponseStatus(await fetch(
           `${OPENAI_API_BASE}/threads/${threadId}/messages`,
-          { headers }
+          { 
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2'
+            }
+          }
         ));
         const messages = await messagesResponse.json();
         
