@@ -78,50 +78,57 @@ function isWebPushSubscription(obj: any): obj is WebPushSubscription {
          ('endpoint' in obj || ('keys' in obj && typeof obj.keys === 'object'));
 }
 
-async function sendWebPushNotification(subscription: WebPushSubscription, title: string, body: string) {
+async function sendPushNotification(token: string | WebPushSubscription, title: string, body: string) {
   const messaging = getMessaging(firebaseApp);
-  const message = {
-    webpush: {
+  
+  if (isWebPushSubscription(token)) {
+    console.log('Sending web push notification');
+    const message = {
+      webpush: {
+        headers: {
+          TTL: '86400'
+        },
+        notification: {
+          title,
+          body,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          vibrate: [100, 50, 100],
+          requireInteraction: true
+        },
+        fcmOptions: {
+          link: '/'
+        }
+      },
+      topic: 'all' // Using topic-based messaging for web push
+    };
+
+    return await messaging.send(message);
+  } else {
+    console.log('Sending FCM notification');
+    const message = {
+      token: typeof token === 'string' ? token : '',
       notification: {
         title,
-        body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico'
+        body
       },
-      fcm_options: {
-        link: '/'
-      }
-    },
-    token: subscription.endpoint!.split('/').pop()!
-  };
-
-  return await messaging.send(message);
-}
-
-async function sendFCMNotification(token: string, title: string, body: string) {
-  const messaging = getMessaging(firebaseApp);
-  const message = {
-    token,
-    notification: {
-      title,
-      body
-    },
-    android: {
-      notification: {
-        icon: 'ic_launcher',
-        sound: 'default'
-      }
-    },
-    apns: {
-      payload: {
-        aps: {
+      android: {
+        notification: {
+          icon: 'ic_launcher',
           sound: 'default'
         }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
       }
-    }
-  };
+    };
 
-  return await messaging.send(message);
+    return await messaging.send(message);
+  }
 }
 
 serve(async (req) => {
@@ -143,23 +150,14 @@ serve(async (req) => {
 
     const parsedToken = parseToken(payload.token);
     console.log('Parsed token type:', typeof parsedToken);
+    console.log('Token structure:', JSON.stringify(parsedToken, null, 2));
 
     try {
-      if (isWebPushSubscription(parsedToken)) {
-        console.log('Handling as web push subscription');
-        await sendWebPushNotification(
-          parsedToken,
-          payload.title || 'New Notification',
-          payload.body || ''
-        );
-      } else {
-        console.log('Handling as FCM token');
-        await sendFCMNotification(
-          typeof parsedToken === 'string' ? parsedToken : payload.token,
-          payload.title || 'New Notification',
-          payload.body || ''
-        );
-      }
+      await sendPushNotification(
+        parsedToken,
+        payload.title || 'New Notification',
+        payload.body || ''
+      );
 
       console.log('Push notification sent successfully');
       return new Response(
