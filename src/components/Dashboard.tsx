@@ -405,9 +405,9 @@ export function Dashboard() {
       </div>
 
       {isExpanded && (
-        <div className="mt-auto space-y-4">
+        <>
           {plaidConnections && plaidConnections.length > 0 && (
-            <div className="border-t border-white/10 pt-4">
+            <div className="mt-4 border-t border-white/10 pt-4">
               <h3 className="text-sm font-medium text-white/60 mb-2">Connected Bank Accounts</h3>
               <div className="grid gap-2">
                 {plaidConnections.map((connection) => (
@@ -425,63 +425,69 @@ export function Dashboard() {
             </div>
           )}
 
-          <div className="border-t border-white/10 pt-4">
-            <div className="flex flex-col md:flex-row justify-center items-center gap-4">
-              <PlaidLinkButton />
-              <Button 
-                variant="outline" 
-                onClick={handleLogout}
-                className="w-full max-w-[200px] flex items-center justify-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Log out
-              </Button>
+          <div className="mt-auto pt-4 flex flex-col md:flex-row justify-center gap-4">
+            <PlaidLinkButton />
+            <Button 
+              variant="outline"
+              onClick={sendTestNotification}
+              className="w-full max-w-[200px] flex items-center justify-center gap-2"
+            >
+              <Bell className="h-4 w-4" />
+              Test Notification
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleLogout} 
+              className="w-full max-w-[200px] flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Log out
+            </Button>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive"
-                    className="w-full max-w-[200px] flex items-center justify-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="bg-gray-900 border-gray-800">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
-                    <AlertDialogDescription className="text-gray-400">
-                      <div className="flex flex-col gap-2">
-                        <p>Are you absolutely sure you want to delete your account? This action cannot be undone.</p>
-                        <div className="flex items-start gap-2 p-3 bg-red-950/50 border border-red-900/50 rounded-lg mt-2">
-                          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                          <div className="text-sm text-red-200">
-                            <p className="font-medium mb-1">This will:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              <li>Delete all your transactions</li>
-                              <li>Remove all bank connections</li>
-                              <li>Delete all your chat messages</li>
-                              <li>Permanently delete your account</li>
-                            </ul>
-                          </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="destructive" 
+                  className="w-full max-w-[200px] flex items-center justify-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Account
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-900 border-gray-800">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-400">
+                    <div className="flex flex-col gap-2">
+                      <p>Are you absolutely sure you want to delete your account? This action cannot be undone.</p>
+                      <div className="flex items-start gap-2 p-3 bg-red-950/50 border border-red-900/50 rounded-lg mt-2">
+                        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                        <div className="text-sm text-red-200">
+                          <p className="font-medium mb-1">This will:</p>
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Delete all your transactions</li>
+                            <li>Remove all bank connections</li>
+                            <li>Delete all your chat messages</li>
+                            <li>Permanently delete your account</li>
+                          </ul>
                         </div>
                       </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={handleDeleteAccount}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      Delete Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDeleteAccount}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete Account
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </div>
+        </>
       )}
     </div>
 
