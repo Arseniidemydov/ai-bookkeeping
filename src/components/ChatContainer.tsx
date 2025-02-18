@@ -47,16 +47,20 @@ export const ChatContainer = () => {
 
         // Send notification about webhook simulation
         try {
+          const notificationData = {
+            user_id: session.session.user.id,
+            title: 'Webhook Simulation',
+            body: `Simulating webhook for Item ID: ${itemId}`
+          };
+
+          console.log('Sending notification with data:', notificationData);
+
           const { error: notificationError } = await supabase.functions.invoke(
             'send-push-notification',
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                user_id: session.session.user.id,
-                title: 'Webhook Simulation',
-                body: `Simulating webhook for Item ID: ${itemId}`
-              })
+              body: JSON.stringify(notificationData) // Explicitly stringify the body
             }
           );
 
