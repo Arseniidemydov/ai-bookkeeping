@@ -433,14 +433,6 @@ export function Dashboard() {
           <div className="border-t border-white/10 pt-4">
             <div className="flex flex-col md:flex-row justify-center items-center gap-4">
               <Button 
-                variant="outline"
-                onClick={sendTestNotification}
-                className="w-full max-w-[200px] flex items-center justify-center gap-2"
-              >
-                <Bell className="h-4 w-4" />
-                Test Notification
-              </Button>
-              <Button 
                 variant="outline" 
                 onClick={handleLogout}
                 className="w-full max-w-[200px] flex items-center justify-center gap-2"
@@ -452,8 +444,8 @@ export function Dashboard() {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button 
-                    variant="destructive"
-                    className="w-full max-w-[200px] flex items-center justify-center gap-2"
+                    variant="default"
+                    className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete Account
