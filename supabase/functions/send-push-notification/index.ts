@@ -1,246 +1,79 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
-import { 
-  initializeApp as initializeFirebaseApp,
-  cert
-} from "npm:firebase-admin/app";
-import { getMessaging } from "npm:firebase-admin/messaging";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-};
-
-// Initialize Supabase client
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Initialize Firebase Admin
-let firebaseApp;
-try {
-  const serviceAccountStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
-  if (!serviceAccountStr) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set');
-  }
-
-  const serviceAccount = JSON.parse(serviceAccountStr);
-  
-  firebaseApp = initializeFirebaseApp({
-    credential: cert(serviceAccount)
-  });
-  
-  console.log('Firebase Admin SDK initialized successfully');
-} catch (error) {
-  console.error('Error initializing Firebase:', error);
-  throw error;
 }
 
-async function removeInvalidToken(token: string) {
-  console.log('Removing invalid token from database');
-  try {
-    const { error } = await supabase
-      .from('device_tokens')
-      .delete()
-      .eq('token', token);
-
-    if (error) {
-      console.error('Error removing invalid token:', error);
-    } else {
-      console.log('Successfully removed invalid token from database');
-    }
-  } catch (error) {
-    console.error('Error in removeInvalidToken:', error);
-  }
-}
-
-function parseToken(token: string) {
-  try {
-    return JSON.parse(token);
-  } catch {
-    return token;
-  }
-}
-
-interface WebPushSubscription {
-  endpoint?: string;
-  keys?: {
-    auth?: string;
-    p256dh?: string;
-  };
-}
-
-function isWebPushSubscription(obj: any): obj is WebPushSubscription {
-  return typeof obj === 'object' && obj !== null && 
-         ('endpoint' in obj || ('keys' in obj && typeof obj.keys === 'object'));
-}
-
-async function sendPushNotification(token: string | WebPushSubscription, title: string, body: string) {
-  const messaging = getMessaging(firebaseApp);
-  
-  if (isWebPushSubscription(token)) {
-    console.log('Sending web push notification using WebPush subscription');
-    
-    // For web push subscriptions, we just need the basic message structure
-    const message = {
-      token: typeof token === 'string' ? token : token.endpoint,
-      notification: {
-        title,
-        body
-      },
-      webpush: {
-        notification: {
-          title,
-          body,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          vibrate: [200, 100, 200],
-          requireInteraction: false,
-          tag: 'message',
-          renotify: true
-        },
-        headers: {
-          Urgency: 'high',
-          TTL: '86400'
-        },
-        fcm_options: {
-          link: '/'
-        }
-      }
-    };
-
-    try {
-      console.log('Sending web push message:', JSON.stringify(message, null, 2));
-      const response = await messaging.send(message);
-      console.log('Web push notification sent successfully:', response);
-      return response;
-    } catch (error) {
-      console.error('Error sending web push notification:', error);
-      throw error;
-    }
-  } else {
-    console.log('Sending FCM notification');
-    
-    // For FCM tokens, we use the full FCM message structure
-    const message = {
-      token: token.toString(),
-      notification: {
-        title,
-        body
-      },
-      android: {
-        notification: {
-          icon: 'ic_launcher',
-          sound: 'default'
-        }
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default'
-          }
-        }
-      },
-      webpush: {
-        notification: {
-          title,
-          body,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          vibrate: [200, 100, 200],
-          requireInteraction: false,
-          tag: 'message',
-          renotify: true
-        },
-        headers: {
-          Urgency: 'high',
-          TTL: '86400'
-        },
-        fcm_options: {
-          link: '/'
-        }
-      }
-    };
-
-    try {
-      console.log('Sending FCM message:', JSON.stringify(message, null, 2));
-      const response = await messaging.send(message);
-      console.log('FCM notification sent successfully:', response);
-      return response;
-    } catch (error) {
-      console.error('Error sending FCM notification:', error);
-      throw error;
-    }
-  }
+interface PushNotificationPayload {
+  tokens: string[];
+  title: string;
+  body: string;
+  data?: Record<string, string>;
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const payload = await req.json();
-    console.log('Received notification payload:', {
-      title: payload.title,
-      body: payload.body,
-      tokenType: typeof payload.token,
-      tokenLength: payload.token?.length
-    });
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-    if (!payload.token) {
-      throw new Error('No token provided');
+    // Get FCM server key from environment variable
+    const FCM_SERVER_KEY = Deno.env.get('FCM_SERVER_KEY')
+    if (!FCM_SERVER_KEY) {
+      throw new Error('FCM_SERVER_KEY is not set')
     }
 
-    const parsedToken = parseToken(payload.token);
-    console.log('Parsed token type:', typeof parsedToken);
-    console.log('Token structure:', JSON.stringify(parsedToken, null, 2));
+    const { tokens, title, body, data } = await req.json() as PushNotificationPayload
 
-    try {
-      await sendPushNotification(
-        parsedToken,
-        payload.title || 'New Notification',
-        payload.body || ''
-      );
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Push notification sent successfully'
-        }),
-        { headers: corsHeaders }
-      );
-    } catch (error) {
-      console.error('Firebase messaging error:', error);
-      
-      if (error.errorInfo?.code === 'messaging/registration-token-not-registered' ||
-          error.errorInfo?.code === 'messaging/invalid-argument') {
-        await removeInvalidToken(payload.token);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Token invalid or expired',
-            code: 'TOKEN_INVALID',
-            message: 'Push notification token needs to be refreshed'
-          }),
-          { headers: corsHeaders, status: 400 }
-        );
-      }
-      
-      throw error;
+    if (!tokens || tokens.length === 0) {
+      throw new Error('No device tokens provided')
     }
-  } catch (error) {
-    console.error('Error in send-push-notification:', error);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        code: error.errorInfo?.code || 'UNKNOWN_ERROR',
-        message: 'Failed to send push notification'
+
+    // Send push notification using FCM
+    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `key=${FCM_SERVER_KEY}`,
+      },
+      body: JSON.stringify({
+        registration_ids: tokens,
+        notification: {
+          title,
+          body,
+        },
+        data: data || {},
       }),
-      { headers: corsHeaders, status: 500 }
-    );
+    })
+
+    if (!response.ok) {
+      throw new Error(`FCM request failed: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+
+    return new Response(
+      JSON.stringify({ success: true, result }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
+    )
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      },
+    )
   }
-});
+})

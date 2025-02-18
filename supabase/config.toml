@@ -7,15 +7,6 @@ verify_jwt = true
 [functions.generate-response]
 verify_jwt = false
 
-[functions.simulate-plaid-webhook]
-verify_jwt = false
-
-[functions.transaction-webhook]
-verify_jwt = false
-
-[functions.send-push-notification]
-verify_jwt = true
-
 [storage]
 [storage.buckets]
 [storage.buckets.transaction_attachments]

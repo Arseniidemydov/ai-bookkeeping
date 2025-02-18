@@ -1,141 +1,11 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { Configuration, PlaidApi, PlaidEnvironments } from "npm:plaid@12.3.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const plaidClient = new PlaidApi(
-  new Configuration({
-    basePath: PlaidEnvironments.sandbox,
-    baseOptions: {
-      headers: {
-        'PLAID-CLIENT-ID': Deno.env.get('PLAID_CLIENT_ID'),
-        'PLAID-SECRET': Deno.env.get('PLAID_SECRET'),
-      },
-    },
-  })
-);
-
-async function syncTransactions(accessToken: string, userId: string) {
-  try {
-    console.log('Starting transaction sync for user:', userId);
-    
-    // Initialize sync
-    const syncResponse = await plaidClient.transactionsSync({
-      access_token: accessToken,
-      options: {
-        include_personal_finance_category: true
-      }
-    });
-
-    const { added, modified, removed } = syncResponse.data;
-    console.log(`Found ${added.length} new, ${modified.length} modified, and ${removed.length} removed transactions`);
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Handle new transactions
-    if (added.length > 0) {
-      const newTransactions = added.map(transaction => ({
-        amount: transaction.amount,
-        date: transaction.date,
-        description: transaction.name,
-        category: transaction.personal_finance_category?.primary,
-        type: transaction.amount > 0 ? 'expense' : 'income',
-        user_id: userId
-      }));
-
-      const { error: insertError } = await supabase
-        .from('transactions')
-        .insert(newTransactions);
-
-      if (insertError) {
-        console.error('Error inserting new transactions:', insertError);
-        throw insertError;
-      }
-      console.log(`Successfully inserted ${added.length} new transactions`);
-
-      // Get user's device tokens for notification
-      const { data: deviceTokens, error: tokenError } = await supabase
-        .from('device_tokens')
-        .select('token')
-        .eq('user_id', userId);
-
-      if (tokenError) {
-        console.error('Error fetching device tokens:', tokenError);
-      } else if (deviceTokens && deviceTokens.length > 0) {
-        console.log(`Found ${deviceTokens.length} device tokens for user:`, userId);
-        
-        // Send notification for each device token
-        for (const { token } of deviceTokens) {
-          try {
-            const notificationResponse = await supabase.functions.invoke('send-push-notification', {
-              body: {
-                token,
-                title: 'New Transactions Available',
-                body: `${added.length} new transaction${added.length === 1 ? '' : 's'} have been imported.`
-              }
-            });
-            console.log('Push notification response:', notificationResponse);
-          } catch (error) {
-            console.error('Error sending push notification:', error);
-          }
-        }
-      }
-    }
-
-    // Handle modified transactions
-    if (modified.length > 0) {
-      for (const transaction of modified) {
-        const { error: updateError } = await supabase
-          .from('transactions')
-          .update({
-            amount: transaction.amount,
-            date: transaction.date,
-            description: transaction.name,
-            category: transaction.personal_finance_category?.primary,
-            type: transaction.amount > 0 ? 'expense' : 'income'
-          })
-          .eq('description', transaction.name)
-          .eq('user_id', userId);
-
-        if (updateError) {
-          console.error('Error updating transaction:', updateError);
-        }
-      }
-      console.log(`Successfully processed ${modified.length} modified transactions`);
-    }
-
-    // Handle removed transactions
-    if (removed.length > 0) {
-      const removedTransactionIds = removed.map(t => t.transaction_id);
-      console.log('Attempting to remove transactions:', removedTransactionIds);
-      
-      const { error: deleteError } = await supabase
-        .from('transactions')
-        .delete()
-        .in('description', removed.map(t => t.name))
-        .eq('user_id', userId);
-
-      if (deleteError) {
-        console.error('Error deleting transactions:', deleteError);
-      } else {
-        console.log(`Successfully removed ${removed.length} transactions`);
-      }
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error syncing transactions:', error);
-    throw error;
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -148,39 +18,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Log the raw request body
-    const rawBody = await req.text();
-    console.log('Raw webhook body:', rawBody);
+    const webhookData = await req.json();
+    console.log('Received webhook:', JSON.stringify(webhookData, null, 2));
 
-    // Parse the JSON body
-    const webhookData = JSON.parse(rawBody);
-    console.log('Parsed Plaid webhook data:', JSON.stringify(webhookData, null, 2));
+    if (webhookData.webhook_type === 'TRANSACTIONS') {
+      const { removed, added } = webhookData;
 
-    if (webhookData.webhook_type === 'TRANSACTIONS' && webhookData.webhook_code === 'SYNC_UPDATES_AVAILABLE') {
-      const { item_id } = webhookData;
-      console.log('Processing transaction update for item_id:', item_id);
-      
-      // Get the user associated with this Plaid item_id
-      const { data: connectionData, error: connectionError } = await supabase
-        .from('plaid_connections')
-        .select('user_id, institution_name, access_token')
-        .eq('item_id', item_id)
-        .single();
+      if (added?.length > 0) {
+        // Here we'll implement the notification system
+        // For now, we'll just log the new transactions
+        console.log('New transactions:', JSON.stringify(added, null, 2));
 
-      if (connectionError) {
-        console.error('Error fetching connection data:', connectionError);
-        throw connectionError;
+        // TODO: Send push notification to the user
+        // We'll implement this after setting up the mobile notifications
       }
-
-      if (!connectionData) {
-        console.error('No connection found for item_id:', item_id);
-        throw new Error('No connection found for item_id: ' + item_id);
-      }
-
-      console.log('Found connection data:', connectionData);
-
-      // Sync transactions using the access token
-      await syncTransactions(connectionData.access_token, connectionData.user_id);
     }
 
     return new Response(
@@ -193,7 +44,7 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error('Error processing Plaid webhook:', error);
+    console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 

@@ -17,8 +17,7 @@ interface Message {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000;
-const INITIAL_RETRY_DELAY = 1000;
+const RETRY_DELAY = 2000; // Increased to 2 seconds
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -58,16 +57,11 @@ export function useChat() {
       }
 
       let lastError;
-      let currentDelay = INITIAL_RETRY_DELAY;
+      let retries = 0;
 
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      while (retries < MAX_RETRIES) {
         try {
-          console.log(`Attempt ${attempt} to send message with payload:`, {
-            prompt: message,
-            userId: session.session.user.id,
-            threadId,
-            fileUrl
-          });
+          console.log(`Attempt ${retries + 1} to send message...`);
           
           const response = await supabase.functions.invoke('generate-response', {
             body: { 
@@ -76,20 +70,11 @@ export function useChat() {
               threadId: threadId,
               fileUrl: fileUrl
             },
-            headers: {
-              'Content-Type': 'application/json'
-            }
           });
-
-          console.log('Response from generate-response:', response);
 
           if (response.error) {
             console.error('Error from generate-response:', response.error);
             throw response.error;
-          }
-
-          if (!response.data) {
-            throw new Error('No data returned from generate-response');
           }
 
           if (response.data.threadId && !threadId) {
@@ -99,15 +84,16 @@ export function useChat() {
           return response.data.generatedText;
         } catch (error) {
           lastError = error;
-          console.error(`Attempt ${attempt} failed:`, error);
+          retries++;
+          console.error(`Attempt ${retries} failed:`, error);
           
-          if (attempt === MAX_RETRIES) {
+          if (retries === MAX_RETRIES) {
             toast.error("Failed to get response. Please try again.");
             throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
-          await delay(currentDelay);
-          currentDelay *= 2;
+          // Wait before retrying with exponential backoff
+          await delay(RETRY_DELAY * Math.pow(2, retries - 1));
         }
       }
 
@@ -173,23 +159,6 @@ export function useChat() {
     },
   });
 
-  const simulateWebhookMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      const response = await supabase.functions.invoke('simulate-plaid-webhook', {
-        body: { item_id: itemId }
-      });
-
-      if (response.error) {
-        console.error('Error simulating webhook:', response.error);
-        toast.error("Failed to simulate webhook");
-        throw response.error;
-      }
-
-      toast.success("Webhook simulation completed");
-      return response.data;
-    }
-  });
-
   useEffect(() => {
     if (chatHistory) {
       const formattedMessages = chatHistory.map((msg: any) => ({
@@ -216,7 +185,6 @@ export function useChat() {
     isLoading,
     chatMutation,
     saveMutation,
-    uploadMutation,
-    simulateWebhookMutation
+    uploadMutation
   };
 }

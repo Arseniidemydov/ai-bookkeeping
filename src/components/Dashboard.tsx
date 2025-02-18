@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, CreditCard, AlertTriangle, Bell } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { subDays, subMonths, startOfDay, endOfDay, format, parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -81,55 +81,8 @@ export function Dashboard() {
   };
 
   const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate('/auth');
-      toast.success('Logged out successfully');
-    } catch (error) {
-      toast.error('Failed to log out');
-      console.error('Error logging out:', error);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) {
-        toast.error('No user session found');
-        return;
-      }
-
-      const tables = [
-        'transactions',
-        'plaid_connections',
-        'device_tokens',
-        'chat_messages'
-      ] as const;
-
-      for (const table of tables) {
-        const { error } = await supabase
-          .from(table)
-          .delete()
-          .eq('user_id', session.session.user.id);
-        
-        if (error) {
-          console.error(`Error deleting from ${table}:`, error);
-        }
-      }
-
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(
-        session.session.user.id
-      );
-
-      if (deleteError) throw deleteError;
-
-      await supabase.auth.signOut();
-      navigate('/auth');
-      toast.success('Account deleted successfully');
-    } catch (error) {
-      toast.error('Failed to delete account');
-      console.error('Error deleting account:', error);
-    }
+    await supabase.auth.signOut();
+    navigate('/auth');
   };
 
   const handleDeleteTransaction = async (transactionId: number) => {
@@ -170,50 +123,6 @@ export function Dashboard() {
     } catch (error) {
       console.error('Error creating test transaction:', error);
       toast.error('Failed to create test transaction');
-    }
-  };
-
-  const sendTestNotification = async () => {
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) {
-        toast.error('You must be logged in to send notifications');
-        return;
-      }
-
-      console.log('Starting test notification request...');
-      console.log('User ID:', session.session.user.id);
-
-      const { data, error } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          user_id: session.session.user.id,
-          title: 'Test Notification',
-          body: 'This is a test notification',
-          timestamp: new Date().toISOString()
-        },
-      });
-
-      console.log('Response:', { data, error });
-
-      if (error) {
-        console.error('Error details:', {
-          message: error.message,
-          name: error.name,
-          stack: error.stack,
-          context: error
-        });
-        toast.error('Failed to send test notification');
-        return;
-      }
-
-      toast.success('Test notification sent successfully!');
-    } catch (error) {
-      console.error('Caught error:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      toast.error('Failed to send test notification');
     }
   };
 
@@ -265,58 +174,6 @@ export function Dashboard() {
       }] as FinancialMetric[];
     }
   });
-
-  const { data: plaidConnections } = useQuery({
-    queryKey: ['plaid-connections'],
-    queryFn: async () => {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) return [];
-
-      const { data, error } = await supabase
-        .from('plaid_connections')
-        .select('*')
-        .eq('user_id', session.session.user.id);
-
-      if (error) throw error;
-      return data || [];
-    }
-  });
-
-  const simulateWebhookMutation = useMutation({
-    mutationFn: async () => {
-      console.log('Simulating Plaid webhook...');
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) {
-        toast.error("Please sign in to simulate webhook");
-        throw new Error("Not authenticated");
-      }
-
-      const response = await supabase.functions.invoke('simulate-plaid-webhook', {
-        body: {}
-      });
-
-      if (response.error) {
-        console.error('Error simulating webhook:', response.error);
-        const errorMessage = response.error.message || 
-                           (typeof response.error === 'string' ? response.error : "Failed to simulate webhook");
-        toast.error(errorMessage);
-        throw response.error;
-      }
-
-      console.log('Webhook simulation response:', response);
-      toast.success("Webhook simulation completed");
-      return response.data;
-    }
-  });
-
-  const simulateWebhook = async () => {
-    try {
-      await simulateWebhookMutation.mutateAsync();
-    } catch (error) {
-      console.error('Error simulating webhook:', error);
-      toast.error("Failed to simulate webhook");
-    }
-  };
 
   useEffect(() => {
     const channel = supabase.channel('transactions-changes').on('postgres_changes', {
@@ -430,7 +287,7 @@ export function Dashboard() {
           </button>)}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {visibleMetrics?.map(metric => <div key={metric.label} onClick={() => handleMetricClick(metric)} className={cn("p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80", metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50", metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50", metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50", metric.type === 'net' && "bg-blue-950/30 border-blue-800/50")}>
             <p className="text-sm font-medium text-white/60 mb-2">{metric.label}</p>
             <p className={cn("text-lg font-semibold", metric.type === 'income' && "text-emerald-400", metric.type === 'expense' && "text-rose-400", metric.type === 'tax' && "text-amber-400", metric.type === 'net' && "text-blue-400")}>
@@ -439,103 +296,24 @@ export function Dashboard() {
           </div>)}
       </div>
 
-      {isExpanded && (
-        <div className="space-y-2">
-          <div className="border-t border-white/10 pt-4">
-            {plaidConnections && plaidConnections.length > 0 && (
-              <>
-                <h3 className="text-sm font-medium text-white/60 mb-2">Connected Bank Accounts</h3>
-                <div className="grid gap-2">
-                  {plaidConnections.map((connection) => (
-                    <div
-                      key={connection.id}
-                      className="flex items-center gap-2 p-3 bg-white/5 rounded-lg"
-                    >
-                      <CreditCard className="w-4 h-4 text-blue-400" />
-                      <span className="text-white">
-                        {connection.institution_name || 'Connected Bank Account'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-center gap-4 mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={simulateWebhook}
-                    className="flex items-center gap-2"
-                    disabled={simulateWebhookMutation.isPending}
-                  >
-                    <Bell className="w-4 h-4" />
-                    Test Plaid Webhook
-                  </Button>
-                  <PlaidLinkButton />
-                </div>
-              </>
-            )}
-            {(!plaidConnections || plaidConnections.length === 0) && (
-              <div className="flex justify-center mt-4">
-                <PlaidLinkButton />
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-white/10 pt-4">
-            <div className="flex flex-col md:flex-row justify-center items-center gap-4">
-              <Button 
-                variant="outline" 
-                onClick={handleLogout}
-                className="w-full max-w-[200px] flex items-center justify-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Log out
-              </Button>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="default"
-                    className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="bg-gray-900 border-gray-800">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
-                    <AlertDialogDescription className="text-gray-400">
-                      <div className="flex flex-col gap-2">
-                        <p>Are you absolutely sure you want to delete your account? This action cannot be undone.</p>
-                        <div className="flex items-start gap-2 p-3 bg-red-950/50 border border-red-900/50 rounded-lg mt-2">
-                          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                          <div className="text-sm text-red-200">
-                            <p className="font-medium mb-1">This will:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              <li>Delete all your transactions</li>
-                              <li>Remove all bank connections</li>
-                              <li>Delete all your chat messages</li>
-                              <li>Permanently delete your account</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={handleDeleteAccount}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      Delete Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-        </div>
-      )}
+      {isExpanded && <div className="mt-auto pt-4 flex justify-center gap-4">
+        <PlaidLinkButton />
+        <Button 
+          variant="outline"
+          onClick={createTestTransaction}
+          className="w-full max-w-[200px] flex items-center justify-center gap-2"
+        >
+          Test Notification
+        </Button>
+        <Button 
+          variant="destructive" 
+          onClick={handleLogout} 
+          className="w-full max-w-[200px] flex items-center justify-center gap-2"
+        >
+          <LogOut className="w-4 h-4" />
+          Log out
+        </Button>
+      </div>}
     </div>
 
     <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
