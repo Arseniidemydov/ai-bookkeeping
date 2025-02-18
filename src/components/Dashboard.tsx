@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, CreditCard, AlertTriangle } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, CreditCard, AlertTriangle, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { subDays, subMonths, startOfDay, endOfDay, format, parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,7 +12,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useNavigate } from "react-router-dom";
 import { TransactionImageDialog } from "./TransactionImageDialog";
 import { PlaidLinkButton } from "./PlaidLinkButton";
-import { Bell } from "lucide-react";
 
 type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
 interface Transaction {
