@@ -142,9 +142,6 @@ export function Dashboard() {
         timestamp: new Date().toISOString()
       });
 
-      const functionUrl = `${supabase.functions.url}/send-push-notification`;
-      console.log('Function URL:', functionUrl);
-
       const { data, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
           user_id: session.session.user.id,
