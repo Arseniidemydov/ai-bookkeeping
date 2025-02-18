@@ -1,13 +1,32 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { usePlaidLink, PlaidLinkOptions } from 'react-plaid-link';
 import { Button } from "@/components/ui/button";
-import { Link } from "lucide-react";
+import { Link, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 export function PlaidLinkButton() {
   const [linkToken, setLinkToken] = useState<string | null>(null);
+
+  // Query to check if user has any connected banks
+  const { data: hasConnectedBank } = useQuery({
+    queryKey: ['plaid-connection-status'],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return false;
+
+      const { data, error } = await supabase
+        .from('plaid_connections')
+        .select('id')
+        .eq('user_id', session.session.user.id)
+        .limit(1);
+
+      if (error) throw error;
+      return data && data.length > 0;
+    }
+  });
 
   const generateToken = async () => {
     try {
@@ -37,7 +56,6 @@ export function PlaidLinkButton() {
         return;
       }
 
-      // First exchange the public token for an access token
       const { data, error: exchangeError } = await supabase.functions.invoke('exchange-plaid-token', {
         body: { 
           public_token,
@@ -78,13 +96,26 @@ export function PlaidLinkButton() {
 
   return (
     <Button 
-      variant="default" 
+      variant={hasConnectedBank ? "outline" : "default"}
       onClick={handleClick}
-      disabled={linkToken && !ready}
-      className="w-full max-w-[200px] flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+      disabled={(linkToken && !ready) || hasConnectedBank}
+      className={`w-full max-w-[200px] flex items-center justify-center gap-2 ${
+        hasConnectedBank 
+          ? 'bg-emerald-600/10 text-emerald-500 hover:bg-emerald-600/20 border-emerald-500/20' 
+          : 'bg-blue-600 hover:bg-blue-700'
+      }`}
     >
-      <Link className="w-4 h-4" />
-      Connect Bank Account
+      {hasConnectedBank ? (
+        <>
+          <CheckCircle2 className="w-4 h-4" />
+          Bank Connected
+        </>
+      ) : (
+        <>
+          <Link className="w-4 h-4" />
+          Connect Bank Account
+        </>
+      )}
     </Button>
   );
 }
