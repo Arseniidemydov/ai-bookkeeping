@@ -4,17 +4,8 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import OpenAI from "https://deno.land/x/openai@v4.24.1/mod.ts";
 
 const openai = new OpenAI({
-  apiKey: Deno.env.get('OPENAI_API_KEY')!,
-  baseURL: 'https://api.openai.com/v1',
-  defaultHeaders: {
-    'OpenAI-Beta': 'assistants=v2',
-    'Content-Type': 'application/json'
-  }
+  apiKey: Deno.env.get('OPENAI_API_KEY')!
 });
-
-console.log('OpenAI client initialized with beta headers');
-
-const ASSISTANT_ID = "asst_wn94DpzGVJKBFLR4wkh7btD2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,88 +21,40 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, userId, threadId: existingThreadId, fileUrl } = await req.json();
-    console.log('Request received:', { prompt, userId, existingThreadId, fileUrl });
+    const { prompt, fileUrl } = await req.json();
+    console.log('Request received:', { prompt, fileUrl });
 
-    // Explicitly fetch and log the current OpenAI beta API version
-    const threads = await fetch('https://api.openai.com/v1/threads', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-        'OpenAI-Beta': 'assistants=v2'
-      }
-    });
-    console.log('API Version check response:', threads.status, await threads.text());
-
-    // Create or retrieve thread
-    let threadId;
-    try {
-      threadId = existingThreadId || (await openai.beta.threads.create()).id;
-      console.log('Thread created/retrieved:', threadId);
-    } catch (error) {
-      console.error('Error creating/retrieving thread:', error);
-      throw error;
-    }
-
-    // Add the message to the thread
-    try {
-      await openai.beta.threads.messages.create(threadId, {
+    const messages = [
+      {
+        role: "system",
+        content: "You are a helpful AI assistant that helps users manage their finances and business. You're direct and concise in your responses."
+      },
+      {
         role: "user",
-        content: fileUrl ? `${prompt}\nImage URL: ${fileUrl}` : prompt,
-      });
-      console.log('Message added to thread');
-    } catch (error) {
-      console.error('Error adding message to thread:', error);
-      throw error;
-    }
+        content: fileUrl ? `${prompt}\nImage URL: ${fileUrl}` : prompt
+      }
+    ];
 
-    // Run the assistant
-    let run;
-    try {
-      run = await openai.beta.threads.runs.create(threadId, {
-        assistant_id: ASSISTANT_ID,
-      });
-      console.log('Assistant run created:', run.id);
-    } catch (error) {
-      console.error('Error creating assistant run:', error);
-      throw error;
-    }
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: messages,
+    });
 
-    // Poll for completion
-    let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-    let attempts = 0;
-    const maxAttempts = 30;
-    const pollInterval = 1000;
+    const generatedText = completion.choices[0].message.content;
+    console.log('Generated response successfully');
 
-    while ((runStatus.status === 'queued' || runStatus.status === 'in_progress') && attempts < maxAttempts) {
-      console.log('Run status:', runStatus.status, 'Attempt:', attempts + 1);
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-      runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-      attempts++;
-    }
-
-    if (runStatus.status === 'completed') {
-      const messages = await openai.beta.threads.messages.list(threadId);
-      const lastMessage = messages.data[0];
-      const generatedText = lastMessage.content[0].type === 'text' ? lastMessage.content[0].text.value : '';
-
-      console.log('Generated response successfully');
-
-      return new Response(
-        JSON.stringify({ 
-          generatedText,
-          threadId
-        }),
-        {
-          headers: { 
-            ...corsHeaders,
-            'Content-Type': 'application/json'
-          }
+    return new Response(
+      JSON.stringify({ 
+        generatedText,
+        threadId: null // For compatibility with existing frontend
+      }),
+      {
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         }
-      );
-    } else {
-      throw new Error(`Run failed with status: ${runStatus.status}`);
-    }
+      }
+    );
   } catch (error) {
     console.error('Error in generate-response:', error);
     
