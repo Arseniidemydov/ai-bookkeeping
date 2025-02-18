@@ -5,8 +5,10 @@ import OpenAI from "https://deno.land/x/openai@v4.24.1/mod.ts";
 
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!,
+  defaultQuery: { 'api-version': '2024-02-15'},
   defaultHeaders: {
-    'OpenAI-Beta': 'assistants=v2' // Add this header for v2 Assistants API
+    'OpenAI-Beta': 'assistants=v2',
+    'OpenAI-Version': '2024-02-15'
   }
 });
 
