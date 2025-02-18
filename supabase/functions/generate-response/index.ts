@@ -5,9 +5,10 @@ import OpenAI from "https://deno.land/x/openai@v4.24.1/mod.ts";
 
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!,
-  defaultQuery: { },
+  baseURL: 'https://api.openai.com/v1',
   defaultHeaders: {
-    'OpenAI-Beta': 'assistants=v2'
+    'OpenAI-Beta': 'assistants=v2',
+    'Content-Type': 'application/json'
   }
 });
 
@@ -31,6 +32,16 @@ serve(async (req) => {
   try {
     const { prompt, userId, threadId: existingThreadId, fileUrl } = await req.json();
     console.log('Request received:', { prompt, userId, existingThreadId, fileUrl });
+
+    // Explicitly fetch and log the current OpenAI beta API version
+    const threads = await fetch('https://api.openai.com/v1/threads', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'OpenAI-Beta': 'assistants=v2'
+      }
+    });
+    console.log('API Version check response:', threads.status, await threads.text());
 
     // Create or retrieve thread
     let threadId;
