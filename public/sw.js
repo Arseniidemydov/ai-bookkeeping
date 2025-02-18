@@ -1,43 +1,33 @@
 
 self.addEventListener('push', function(event) {
-  console.log('Push notification received:', event);
-  
+  console.log('[Service Worker] Push Received.');
+  console.log('[Service Worker] Push had this data:', event.data?.text());
+
   try {
-    const data = event.data.json();
-    console.log('Parsed notification data:', data);
+    const data = event.data?.json() ?? {};
     
     const options = {
-      body: data.body,
+      body: data.body || 'No content',
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      data: data.data || {},
-      requireInteraction: true,
-      actions: [
-        {
-          action: 'open',
-          title: 'Open'
-        }
-      ]
+      vibrate: [200, 100, 200],
+      data: {
+        timestamp: data.timestamp,
+        url: self.registration.scope
+      }
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title, options)
+      self.registration.showNotification(data.title || 'New Notification', options)
     );
   } catch (error) {
-    console.error('Error showing notification:', error);
-    // If we can't parse the data, show a generic notification
-    event.waitUntil(
-      self.registration.showNotification('New Notification', {
-        body: 'You have a new notification',
-        icon: '/favicon.ico',
-      })
-    );
+    console.error('[Service Worker] Error showing notification:', error);
   }
 });
 
 self.addEventListener('notificationclick', function(event) {
-  console.log('Notification click received:', event);
-  
+  console.log('[Service Worker] Notification click received.');
+
   event.notification.close();
 
   event.waitUntil(
@@ -55,15 +45,15 @@ self.addEventListener('notificationclick', function(event) {
         }
         return client.focus();
       }
-      return clients.openWindow('/');
+      return clients.openWindow('/chat');
     })
   );
 });
 
-self.addEventListener('install', (event) => {
-  console.log('Service Worker installed');
+self.addEventListener('activate', event => {
+  console.log('[Service Worker] Activated');
 });
 
-self.addEventListener('activate', (event) => {
-  console.log('Service Worker activated');
+self.addEventListener('install', event => {
+  console.log('[Service Worker] Installed');
 });
