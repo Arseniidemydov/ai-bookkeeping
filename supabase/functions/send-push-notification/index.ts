@@ -41,15 +41,42 @@ try {
 
 async function removeInvalidToken(token: string) {
   console.log('Removing invalid token from database');
-  const { error } = await supabase
-    .from('device_tokens')
-    .delete()
-    .eq('token', token);
+  try {
+    const { error } = await supabase
+      .from('device_tokens')
+      .delete()
+      .eq('token', token);
 
-  if (error) {
-    console.error('Error removing invalid token:', error);
-  } else {
-    console.log('Successfully removed invalid token from database');
+    if (error) {
+      console.error('Error removing invalid token:', error);
+    } else {
+      console.log('Successfully removed invalid token from database');
+    }
+  } catch (error) {
+    console.error('Error in removeInvalidToken:', error);
+  }
+}
+
+function extractFCMToken(subscription: any): string | null {
+  try {
+    // If it's already an FCM token
+    if (typeof subscription === 'string') {
+      return subscription;
+    }
+
+    // If it's a web push subscription
+    const subscriptionObj = typeof subscription === 'string' 
+      ? JSON.parse(subscription) 
+      : subscription;
+
+    if (subscriptionObj.endpoint?.includes('fcm.googleapis.com')) {
+      return subscriptionObj.endpoint.split('/').pop() || null;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error extracting FCM token:', error);
+    return null;
   }
 }
 
@@ -60,65 +87,50 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log('Processing notification request:', {
+    console.log('Received notification payload:', {
       hasTitle: !!payload.title,
       hasBody: !!payload.body,
-      hasToken: !!payload.token
+      tokenLength: payload.token?.length
     });
 
     if (!payload.token) {
       throw new Error('No token provided');
     }
 
-    let isWebPush = false;
-    try {
-      const tokenObj = JSON.parse(payload.token);
-      isWebPush = !!(tokenObj.endpoint && tokenObj.keys);
-    } catch {
-      isWebPush = false;
+    const fcmToken = extractFCMToken(payload.token);
+    if (!fcmToken) {
+      throw new Error('Could not extract valid FCM token');
     }
+
+    console.log('Extracted FCM token:', fcmToken.substring(0, 10) + '...');
 
     const messaging = getMessaging(firebaseApp);
-    let fcmToken = payload.token;
-
-    if (isWebPush) {
-      const subscription = JSON.parse(payload.token);
-      if (subscription.endpoint?.includes('fcm.googleapis.com')) {
-        fcmToken = subscription.endpoint.split('/').pop();
-        if (!fcmToken) {
-          throw new Error('Invalid FCM token from web push subscription');
-        }
-      }
-    }
-
+    
     const message = {
       token: fcmToken,
       notification: {
         title: payload.title || 'New Notification',
         body: payload.body || ''
       },
-      ...(isWebPush ? {
-        webpush: {
-          notification: {
-            icon: '/favicon.ico',
-            badge: '/favicon.ico'
-          }
+      android: {
+        notification: {
+          icon: 'ic_launcher',
+          sound: 'default'
         }
-      } : {
-        android: {
-          notification: {
-            icon: 'ic_launcher',
+      },
+      apns: {
+        payload: {
+          aps: {
             sound: 'default'
           }
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: 'default'
-            }
-          }
         }
-      })
+      },
+      webpush: {
+        notification: {
+          icon: '/favicon.ico',
+          badge: '/favicon.ico'
+        }
+      }
     };
 
     try {
@@ -155,7 +167,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        code: error.errorInfo?.code,
+        code: error.errorInfo?.code || 'UNKNOWN_ERROR',
         message: 'Failed to send push notification'
       }),
       { headers: corsHeaders }
