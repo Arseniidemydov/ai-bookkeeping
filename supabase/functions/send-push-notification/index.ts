@@ -139,8 +139,9 @@ serve(async (req) => {
       );
     }
 
+    // Fix: Use the correct URL format for VAPID subject
     webpush.setVapidDetails(
-      'mailto:arsenii.demydov@gmail.com',
+      'https://mail.google.com',
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
     );
