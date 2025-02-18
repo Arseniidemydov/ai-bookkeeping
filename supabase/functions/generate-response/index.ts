@@ -22,6 +22,33 @@ async function checkResponseStatus(response: Response) {
   return response;
 }
 
+async function checkAndCancelActiveRuns(threadId: string, headers: Record<string, string>) {
+  try {
+    const runsResponse = await fetch(
+      `${OPENAI_API_BASE}/threads/${threadId}/runs`,
+      { headers }
+    );
+    const runs = await runsResponse.json();
+    
+    const activeRuns = runs.data?.filter((run: any) => 
+      ['in_progress', 'queued'].includes(run.status)
+    );
+
+    for (const run of activeRuns || []) {
+      console.log(`Cancelling active run: ${run.id}`);
+      await fetch(
+        `${OPENAI_API_BASE}/threads/${threadId}/runs/${run.id}/cancel`,
+        { 
+          method: 'POST',
+          headers 
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error checking/cancelling active runs:', error);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -50,14 +77,12 @@ serve(async (req) => {
     try {
       if (existingThreadId) {
         threadId = existingThreadId;
+        // Check and cancel any active runs before proceeding
+        await checkAndCancelActiveRuns(threadId, headers);
       } else {
         const response = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'assistants=v2'
-          }
+          headers
         }));
         const thread = await response.json();
         if (!thread.id) throw new Error('No thread ID received from OpenAI');
@@ -73,11 +98,7 @@ serve(async (req) => {
     try {
       const messageResponse = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads/${threadId}/messages`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2'
-        },
+        headers,
         body: JSON.stringify({
           role: "user",
           content: fileUrl ? `${prompt}\nImage URL: ${fileUrl}` : prompt
@@ -95,11 +116,7 @@ serve(async (req) => {
     try {
       const runResponse = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads/${threadId}/runs`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'assistants=v2'
-        },
+        headers,
         body: JSON.stringify({
           assistant_id: ASSISTANT_ID
         })
@@ -122,13 +139,7 @@ serve(async (req) => {
       try {
         const statusResponse = await checkResponseStatus(await fetch(
           `${OPENAI_API_BASE}/threads/${threadId}/runs/${run.id}`,
-          { 
-            headers: {
-              'Authorization': `Bearer ${openAIApiKey}`,
-              'Content-Type': 'application/json',
-              'OpenAI-Beta': 'assistants=v2'
-            }
-          }
+          { headers }
         ));
         runStatus = await statusResponse.json();
         
@@ -160,13 +171,7 @@ serve(async (req) => {
       try {
         const messagesResponse = await checkResponseStatus(await fetch(
           `${OPENAI_API_BASE}/threads/${threadId}/messages`,
-          { 
-            headers: {
-              'Authorization': `Bearer ${openAIApiKey}`,
-              'Content-Type': 'application/json',
-              'OpenAI-Beta': 'assistants=v2'
-            }
-          }
+          { headers }
         ));
         const messages = await messagesResponse.json();
         
