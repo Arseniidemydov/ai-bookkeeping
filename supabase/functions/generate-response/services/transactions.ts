@@ -1,6 +1,23 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
-import { format, parse } from "https://deno.land/x/date_fns@v2.22.1/index.js";
+
+function formatDateToISO(dateStr: string): string {
+  // If the date is already in ISO format (YYYY-MM-DD), return it
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  // Handle DD-MM-YYYY format
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+    const [day, month, year] = dateStr.split('-').map(Number);
+    // Create date in local timezone
+    const date = new Date(year, month - 1, day);
+    // Format to YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+  }
+
+  throw new Error(`Invalid date format: ${dateStr}. Expected DD-MM-YYYY or YYYY-MM-DD`);
+}
 
 export async function getTransactionsContext(supabase: any, userId: string) {
   if (!userId) {
@@ -42,13 +59,8 @@ export async function addIncomeTransaction(
   }
 
   try {
-    // Parse the date string and format it to ISO
-    let formattedDate = date;
-    if (date.includes('-')) {
-      // Handle DD-MM-YYYY format
-      const parsedDate = parse(date, 'dd-MM-yyyy', new Date());
-      formattedDate = format(parsedDate, 'yyyy-MM-dd');
-    }
+    const formattedDate = formatDateToISO(date);
+    console.log('Formatted date for income transaction:', formattedDate);
 
     const { data, error } = await supabase
       .from('transactions')
@@ -88,13 +100,8 @@ export async function addExpenseTransaction(
   }
 
   try {
-    // Parse the date string and format it to ISO
-    let formattedDate = date;
-    if (date.includes('-')) {
-      // Handle DD-MM-YYYY format
-      const parsedDate = parse(date, 'dd-MM-yyyy', new Date());
-      formattedDate = format(parsedDate, 'yyyy-MM-dd');
-    }
+    const formattedDate = formatDateToISO(date);
+    console.log('Formatted date for expense transaction:', formattedDate);
 
     const { data, error } = await supabase
       .from('transactions')
