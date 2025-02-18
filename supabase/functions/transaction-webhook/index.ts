@@ -25,10 +25,10 @@ serve(async (req) => {
       throw new Error('No item_id in webhook payload');
     }
 
-    // Get the Plaid connection
+    // Get the Plaid connection to find the user
     const { data: connection, error: connectionError } = await supabase
       .from('plaid_connections')
-      .select('user_id')
+      .select('user_id, institution_name')
       .eq('item_id', payload.item_id)
       .maybeSingle();
 
@@ -39,48 +39,65 @@ serve(async (req) => {
 
     console.log('Processing webhook for user:', connection.user_id);
 
-    // Get the next ID for the transaction
-    const { data: maxIdResult, error: maxIdError } = await supabase
-      .from('transactions')
-      .select('id')
-      .order('id', { ascending: false })
-      .limit(1)
-      .single();
+    // Get the user's device tokens
+    const { data: deviceTokens, error: tokenError } = await supabase
+      .from('device_tokens')
+      .select('token')
+      .eq('user_id', connection.user_id);
 
-    const nextId = maxIdResult ? maxIdResult.id + 1 : 1;
-
-    // For testing purposes, create a mock transaction
-    const mockTransaction = {
-      id: nextId,
-      user_id: connection.user_id,
-      amount: -50.00,
-      description: "Test Transaction",
-      category: "Food",
-      date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
-      type: "expense"
-    };
-
-    console.log('Attempting to create transaction:', mockTransaction);
-
-    // Insert the mock transaction
-    const { data: transaction, error: transactionError } = await supabase
-      .from('transactions')
-      .insert([mockTransaction])
-      .select()
-      .single();
-
-    if (transactionError) {
-      console.error('Error creating transaction:', transactionError);
-      throw new Error(`Failed to create transaction: ${transactionError.message}`);
+    if (tokenError) {
+      console.error('Error fetching device tokens:', tokenError);
+      throw new Error('Failed to fetch device tokens');
     }
 
-    console.log('Created mock transaction:', transaction);
+    if (!deviceTokens || deviceTokens.length === 0) {
+      console.log('No device tokens found for user');
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No device tokens found to send notifications to'
+        }),
+        { 
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
 
+    console.log(`Found ${deviceTokens.length} device tokens`);
+
+    // Prepare notification message based on webhook type
+    let notificationTitle = 'Bank Update';
+    let notificationBody = `New update from ${connection.institution_name || 'your bank'}`;
+
+    if (payload.webhook_type === 'TRANSACTIONS' && payload.webhook_code === 'SYNC_UPDATES_AVAILABLE') {
+      notificationTitle = 'New Transactions Available';
+      notificationBody = `New transactions are available from ${connection.institution_name || 'your bank'}`;
+    }
+
+    // Call the send-push-notification function for each device token
+    const notificationPromises = deviceTokens.map(({ token }) => 
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          token,
+          title: notificationTitle,
+          body: notificationBody
+        }
+      })
+    );
+
+    const notificationResults = await Promise.allSettled(notificationPromises);
+    console.log('Push notification results:', notificationResults);
+
+    const successfulNotifications = notificationResults.filter(result => result.status === 'fulfilled');
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Webhook processed successfully',
-        transaction: transaction
+        message: `Successfully processed webhook and sent ${successfulNotifications.length} notifications`,
+        notification_results: notificationResults
       }),
       { 
         headers: {
@@ -98,7 +115,7 @@ serve(async (req) => {
         timestamp: new Date().toISOString()
       }),
       { 
-        status: 200, // Changed to 200 to prevent cascade failure
+        status: 200, // Keep 200 to prevent cascade failure
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
