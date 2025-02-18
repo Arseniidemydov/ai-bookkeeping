@@ -83,33 +83,36 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
   
   if (isWebPushSubscription(token)) {
     console.log('Sending web push notification using WebPush subscription');
-    // For web push, we'll use a condition-based message targeting Chrome browsers
     const message = {
-      condition: "'chrome' in topics",
-      webpush: {
+      webPush: {
         notification: {
           title,
           body,
           icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          vibrate: [100, 50, 100],
-          requireInteraction: true,
-          actions: [
-            {
-              action: 'open_url',
-              title: 'Open',
-              icon: '/favicon.ico'
-            }
-          ]
+          badge: '/favicon.ico'
         },
-        fcmOptions: {
+        headers: {
+          Urgency: 'high',
+          TTL: '86400'
+        },
+        data: {
+          notification: {
+            title,
+            body,
+            data: {
+              url: '/'
+            }
+          }
+        },
+        fcm_options: {
           link: '/'
         }
-      }
+      },
+      tokens: [JSON.stringify(token)]
     };
 
     try {
-      const response = await messaging.send(message);
+      const response = await messaging.sendMulticast(message);
       console.log('Web push notification sent successfully:', response);
       return response;
     } catch (error) {
@@ -119,11 +122,20 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
   } else {
     console.log('Sending FCM notification');
     const message = {
-      token: typeof token === 'string' ? token : '',
       notification: {
         title,
         body
       },
+      data: {
+        notification: {
+          title,
+          body,
+          data: {
+            url: '/'
+          }
+        }
+      },
+      token: typeof token === 'string' ? token : '',
       android: {
         notification: {
           icon: 'ic_launcher',
@@ -135,6 +147,21 @@ async function sendPushNotification(token: string | WebPushSubscription, title: 
           aps: {
             sound: 'default'
           }
+        }
+      },
+      webpush: {
+        headers: {
+          Urgency: 'high',
+          TTL: '86400'
+        },
+        notification: {
+          title,
+          body,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico'
+        },
+        fcm_options: {
+          link: '/'
         }
       }
     };
@@ -158,8 +185,9 @@ serve(async (req) => {
   try {
     const payload = await req.json();
     console.log('Received notification payload:', {
-      hasTitle: !!payload.title,
-      hasBody: !!payload.body,
+      title: payload.title,
+      body: payload.body,
+      tokenType: typeof payload.token,
       tokenLength: payload.token?.length
     });
 
