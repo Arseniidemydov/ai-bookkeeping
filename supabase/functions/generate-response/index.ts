@@ -4,7 +4,10 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import OpenAI from "https://deno.land/x/openai@v4.24.1/mod.ts";
 
 const openai = new OpenAI({
-  apiKey: Deno.env.get('OPENAI_API_KEY')!
+  apiKey: Deno.env.get('OPENAI_API_KEY')!,
+  defaultHeaders: {
+    'OpenAI-Beta': 'assistants=v2' // Add this header for v2 Assistants API
+  }
 });
 
 const ASSISTANT_ID = "asst_wn94DpzGVJKBFLR4wkh7btD2";
