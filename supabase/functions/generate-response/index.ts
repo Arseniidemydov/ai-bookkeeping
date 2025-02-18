@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import OpenAI from "https://deno.land/x/openai@v4.24.0/mod.ts";
+import OpenAI from "https://deno.land/x/openai@v4.24.1/mod.ts";
 
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!,
@@ -48,10 +48,15 @@ serve(async (req) => {
 
     // Poll for completion
     let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-    while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
-      console.log('Run status:', runStatus.status);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    let attempts = 0;
+    const maxAttempts = 30;
+    const pollInterval = 1000; // 1 second
+
+    while ((runStatus.status === 'queued' || runStatus.status === 'in_progress') && attempts < maxAttempts) {
+      console.log('Run status:', runStatus.status, 'Attempt:', attempts + 1);
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
       runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
+      attempts++;
     }
 
     if (runStatus.status === 'completed') {
