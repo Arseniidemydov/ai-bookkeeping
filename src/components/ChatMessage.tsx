@@ -98,7 +98,7 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
     >
       <div
         className={cn(
-          "max-w-[80%] px-4 py-2.5 rounded-[20px]",
+          "max-w-[80%] px-4 py-2.5 rounded-[20px] relative",
           sender === "user"
             ? "bg-[#4C6FFF] text-white rounded-tr-[5px]"
             : "bg-[#1E1E1E] text-white rounded-tl-[5px]"
@@ -121,7 +121,7 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
             )}
           </div>
         )}
-        <div className="text-sm leading-relaxed whitespace-pre-line">
+        <div className="text-sm leading-relaxed whitespace-pre-line mb-4">
           {containsHTML && sender === "other" ? (
             <div className="flex flex-col items-start gap-2">
               <div className="flex items-center gap-2 text-white/80">
@@ -142,9 +142,9 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
             formatBoldText(content)
           )}
         </div>
-        <div className="flex justify-end mt-2">
-          <span className="text-[11px] text-white/60 whitespace-nowrap">{timestamp}</span>
-        </div>
+        <span className="absolute bottom-1.5 right-3 text-[11px] text-white/60 whitespace-nowrap inline-block">
+          {timestamp}
+        </span>
       </div>
     </div>
   );
