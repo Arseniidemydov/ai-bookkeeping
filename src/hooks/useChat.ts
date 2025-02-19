@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,8 +15,8 @@ interface Message {
   };
 }
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // Increased to 2 seconds
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 1000;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -88,12 +87,11 @@ export function useChat() {
           console.error(`Attempt ${retries} failed:`, error);
           
           if (retries === MAX_RETRIES) {
-            toast.error("Failed to get response. Please try again.");
-            throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
+            toast.error("Assistant is not responding. Please try again.");
+            throw new Error(`Failed to get response after ${MAX_RETRIES} attempts`);
           }
           
-          // Wait before retrying with exponential backoff
-          await delay(RETRY_DELAY * Math.pow(2, retries - 1));
+          await delay(RETRY_DELAY);
         }
       }
 

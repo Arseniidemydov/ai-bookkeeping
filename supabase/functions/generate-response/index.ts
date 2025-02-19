@@ -46,7 +46,6 @@ serve(async (req) => {
       currentThreadId = await createThread();
     }
 
-    // Optimize the message context to reduce token usage
     const messageWithContext = transactionsContext ? 
       `Context: ${transactionsContext}\nUser: ${prompt}` : 
       `User: ${prompt}`;
@@ -59,9 +58,9 @@ serve(async (req) => {
     
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 5; // Increased max attempts
-    const initialDelay = 2000;
-    const maxDelay = 32000; // Maximum delay of 32 seconds
+    const maxAttempts = 3; // Reduced from 5 to 3
+    const initialDelay = 1000; // Reduced from 2000 to 1000ms
+    const maxDelay = 5000; // Reduced from 32000 to 5000ms
 
     while (attempts < maxAttempts) {
       console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
@@ -85,15 +84,13 @@ serve(async (req) => {
       }
       
       if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
-        // Check specifically for rate limit errors
         if (runStatusData.last_error?.code === 'rate_limit_exceeded') {
-          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "2");
+          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "1");
           const delay = Math.min(Math.max(retryAfter * 1000, initialDelay), maxDelay);
           
           console.log(`Rate limit hit. Waiting ${delay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           
-          // Restart the run after waiting
           console.log('Restarting assistant run...');
           const newRun = await startAssistantRun(currentThreadId);
           runStatusData = await getRunStatus(currentThreadId, newRun.id);
@@ -106,14 +103,8 @@ serve(async (req) => {
         throw new Error(error);
       }
       
-      if (runStatusData.status === 'requires_action') {
-        const toolOutputs = await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action, supabase);
-        console.log('Tool outputs submitted:', JSON.stringify(toolOutputs));
-      }
-      
-      // Calculate exponential backoff delay with jitter
       const delay = Math.min(
-        initialDelay * Math.pow(2, attempts) * (0.5 + Math.random() * 0.5), 
+        initialDelay * Math.pow(1.5, attempts), // Changed from 2 to 1.5 for gentler backoff
         maxDelay
       );
       
@@ -131,75 +122,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function handleRequiredAction(threadId: string, runId: string, requiredAction: any, supabase: any) {
-  console.log('Handling required action:', JSON.stringify(requiredAction, null, 2));
-  
-  const toolCalls = requiredAction.submit_tool_outputs.tool_calls;
-  const toolOutputs = [];
-
-  for (const toolCall of toolCalls) {
-    const functionName = toolCall.function.name;
-    const functionArgs = JSON.parse(toolCall.function.arguments);
-    
-    console.log('Processing function call:', functionName, 'with args:', functionArgs);
-
-    try {
-      let output;
-      switch (functionName) {
-        case 'fetch_user_transactions':
-          output = await getTransactionsContext(supabase, functionArgs.user_id);
-          break;
-        case 'add_income':
-          output = await addIncomeTransaction(
-            supabase,
-            functionArgs.user_id,
-            functionArgs.amount,
-            functionArgs.source,
-            functionArgs.date,
-            functionArgs.category
-          );
-          break;
-        case 'add_expense':
-          output = await addExpenseTransaction(
-            supabase,
-            functionArgs.user_id,
-            functionArgs.amount,
-            functionArgs.category,
-            functionArgs.date
-          );
-          break;
-        case 'get_pdf_images':
-          output = await getPDFImages(supabase, functionArgs.document_id);
-          break;
-        default:
-          throw new Error(`Function ${functionName} not implemented`);
-      }
-
-      toolOutputs.push({
-        tool_call_id: toolCall.id,
-        output: JSON.stringify(output)
-      });
-    } catch (error) {
-      console.error(`Error processing ${functionName}:`, error);
-      throw error;
-    }
-  }
-
-  const submitResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/submit_tool_outputs`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v2'
-    },
-    body: JSON.stringify({ tool_outputs: toolOutputs })
-  });
-
-  if (!submitResponse.ok) {
-    const errorData = await submitResponse.text();
-    throw new Error(`Failed to submit tool outputs: ${submitResponse.status} ${errorData}`);
-  }
-
-  return await submitResponse.json();
-}
