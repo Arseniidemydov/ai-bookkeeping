@@ -1,12 +1,6 @@
 
-project_id = "pqfawxyxvjocxfhsjdec"
-
 [functions.generate-response]
-verify_jwt = false
+verify_jwt = true
 
-[storage]
-[storage.buckets]
-[storage.buckets.transaction_attachments]
-public = true
-file_size_limit = "10MB"
-allowed_mime_types = ["image/*"]
+[functions.add-expense]
+verify_jwt = true
