@@ -83,7 +83,7 @@ export async function addExpenseTransaction(
       .from('transactions')
       .insert([{
         user_id: userId,
-        amount: -Math.abs(amount), // Ensure expense is negative
+        amount: amount, // Removed -Math.abs(amount) to store the original amount
         type: 'expense',
         description: category,
         category: category,
