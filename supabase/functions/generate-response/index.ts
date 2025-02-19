@@ -58,9 +58,8 @@ serve(async (req) => {
     
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
-    const maxAttempts = 3; // Reduced from 5 to 3
-    const initialDelay = 1000; // Reduced from 2000 to 1000ms
-    const maxDelay = 5000; // Reduced from 32000 to 5000ms
+    const maxAttempts = 6;
+    const statusCheckDelay = 500; // Reduced to 500ms between status checks
 
     while (attempts < maxAttempts) {
       console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
@@ -84,36 +83,20 @@ serve(async (req) => {
       }
       
       if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
-        if (runStatusData.last_error?.code === 'rate_limit_exceeded') {
-          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "1");
-          const delay = Math.min(Math.max(retryAfter * 1000, initialDelay), maxDelay);
-          
-          console.log(`Rate limit hit. Waiting ${delay}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
-          console.log('Restarting assistant run...');
-          const newRun = await startAssistantRun(currentThreadId);
-          runStatusData = await getRunStatus(currentThreadId, newRun.id);
-          attempts++;
-          continue;
-        }
-
         const error = `Run failed with status: ${runStatusData.status}. Last status data: ${JSON.stringify(runStatusData)}`;
         console.error(error);
         throw new Error(error);
       }
       
-      const delay = Math.min(
-        initialDelay * Math.pow(1.5, attempts), // Changed from 2 to 1.5 for gentler backoff
-        maxDelay
-      );
-      
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Simple fixed delay between status checks
+      await new Promise(resolve => setTimeout(resolve, statusCheckDelay));
       runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
     }
 
-    throw new Error('Assistant run timed out after maximum retries');
+    // If we've reached here, we've exceeded our maximum attempts
+    console.error('Run did not complete in time. Final status:', runStatusData.status);
+    throw new Error('Request timed out. Please try again.');
   } catch (error) {
     console.error('Error in generate-response function:', error);
     return new Response(JSON.stringify({ error: error.message }), {
