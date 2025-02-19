@@ -36,8 +36,9 @@ export const ChatContainer = () => {
         content: savedUserMessage.content,
         sender: savedUserMessage.sender as "user" | "other",
         timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
         }),
         file: fileData
       };
@@ -61,8 +62,9 @@ export const ChatContainer = () => {
         content: savedGptMessage.content,
         sender: savedGptMessage.sender as "user" | "other",
         timestamp: new Date(savedGptMessage.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
         }),
       };
       setMessages(prev => [...prev, assistantMessage]);
