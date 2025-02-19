@@ -25,6 +25,7 @@ export const ChatContainer = () => {
         fileData = await uploadMutation.mutateAsync(file);
       }
 
+      // Add user message
       const savedUserMessage = await saveMutation.mutateAsync({
         content,
         sender: "user",
@@ -36,9 +37,8 @@ export const ChatContainer = () => {
         content: savedUserMessage.content,
         sender: savedUserMessage.sender as "user" | "other",
         timestamp: new Date(savedUserMessage.timestamp).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
+          hour: "2-digit",
+          minute: "2-digit"
         }),
         file: fileData
       };
@@ -47,6 +47,11 @@ export const ChatContainer = () => {
       // Scroll to bottom when sending a new message
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
+      // Add a small delay before getting the assistant's response
+      // This ensures any previous runs have time to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Get assistant's response
       const gptResponse = await chatMutation.mutateAsync({
         message: content,
         fileUrl: fileData?.url
@@ -62,9 +67,8 @@ export const ChatContainer = () => {
         content: savedGptMessage.content,
         sender: savedGptMessage.sender as "user" | "other",
         timestamp: new Date(savedGptMessage.timestamp).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
+          hour: "2-digit",
+          minute: "2-digit"
         }),
       };
       setMessages(prev => [...prev, assistantMessage]);

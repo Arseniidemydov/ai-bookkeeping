@@ -1,198 +1,205 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
+import { corsHeaders, handleCORS } from './utils/cors.ts';
+import { getTransactionsContext, addIncomeTransaction, addExpenseTransaction } from './services/transactions.ts';
+import { 
+  createThread, 
+  addMessageToThread, 
+  startAssistantRun, 
+  getRunStatus, 
+  getAssistantMessages 
+} from './services/assistant.ts';
+import { getPDFImages } from './services/ocr.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
-const ASSISTANT_ID = "asst_wn94DpzGVJKBFLR4wkh7btD2";
-const OPENAI_API_BASE = "https://api.openai.com/v1";
-
-async function checkResponseStatus(response: Response) {
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(
-      `API call failed with status ${response.status}: ${
-        errorData ? JSON.stringify(errorData) : response.statusText
-      }`
-    );
-  }
-  return response;
+if (!openAIApiKey) {
+  throw new Error('OPENAI_API_KEY environment variable is not set');
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders
-    });
-  }
+  const corsResponse = handleCORS(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const { prompt, userId, threadId: existingThreadId, fileUrl } = await req.json();
-    console.log('Request received:', { prompt, userId, existingThreadId, fileUrl });
-
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not found');
+    const { prompt, userId, threadId, fileUrl } = await req.json();
+    console.log('Received request:', { prompt, userId, threadId, fileUrl });
+    
+    if (!userId) {
+      return new Response(JSON.stringify({ 
+        error: "User ID is required to process this request" 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const headers = {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const transactionsContext = await getTransactionsContext(supabase, userId);
+
+    let currentThreadId = threadId;
+    if (!currentThreadId) {
+      currentThreadId = await createThread();
+    }
+
+    // Optimize the message context to reduce token usage
+    const messageWithContext = transactionsContext ? 
+      `Context: ${transactionsContext}\nUser: ${prompt}` : 
+      `User: ${prompt}`;
+
+    await addMessageToThread(currentThreadId, messageWithContext, fileUrl);
+
+    console.log('Starting assistant run...');
+    const run = await startAssistantRun(currentThreadId);
+    console.log('Run started with ID:', run.id);
+    
+    let runStatusData = await getRunStatus(currentThreadId, run.id);
+    let attempts = 0;
+    const maxAttempts = 5; // Increased max attempts
+    const initialDelay = 2000;
+    const maxDelay = 32000; // Maximum delay of 32 seconds
+
+    while (attempts < maxAttempts) {
+      console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
+      
+      if (runStatusData.status === 'completed') {
+        const messages = await getAssistantMessages(currentThreadId);
+        const assistantMessage = messages.data.find((msg: any) => 
+          msg.role === 'assistant' && msg.content && msg.content.length > 0
+        );
+
+        if (!assistantMessage?.content[0]?.text?.value) {
+          throw new Error('No valid response content found');
+        }
+
+        return new Response(JSON.stringify({ 
+          generatedText: assistantMessage.content[0].text.value,
+          threadId: currentThreadId
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
+        // Check specifically for rate limit errors
+        if (runStatusData.last_error?.code === 'rate_limit_exceeded') {
+          const retryAfter = parseFloat(runStatusData.last_error.message.match(/try again in (\d+\.?\d*)s/)?.[1] || "2");
+          const delay = Math.min(Math.max(retryAfter * 1000, initialDelay), maxDelay);
+          
+          console.log(`Rate limit hit. Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          // Restart the run after waiting
+          console.log('Restarting assistant run...');
+          const newRun = await startAssistantRun(currentThreadId);
+          runStatusData = await getRunStatus(currentThreadId, newRun.id);
+          attempts++;
+          continue;
+        }
+
+        const error = `Run failed with status: ${runStatusData.status}. Last status data: ${JSON.stringify(runStatusData)}`;
+        console.error(error);
+        throw new Error(error);
+      }
+      
+      if (runStatusData.status === 'requires_action') {
+        const toolOutputs = await handleRequiredAction(currentThreadId, run.id, runStatusData.required_action, supabase);
+        console.log('Tool outputs submitted:', JSON.stringify(toolOutputs));
+      }
+      
+      // Calculate exponential backoff delay with jitter
+      const delay = Math.min(
+        initialDelay * Math.pow(2, attempts) * (0.5 + Math.random() * 0.5), 
+        maxDelay
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      runStatusData = await getRunStatus(currentThreadId, run.id);
+      attempts++;
+    }
+
+    throw new Error('Assistant run timed out after maximum retries');
+  } catch (error) {
+    console.error('Error in generate-response function:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
+
+async function handleRequiredAction(threadId: string, runId: string, requiredAction: any, supabase: any) {
+  console.log('Handling required action:', JSON.stringify(requiredAction, null, 2));
+  
+  const toolCalls = requiredAction.submit_tool_outputs.tool_calls;
+  const toolOutputs = [];
+
+  for (const toolCall of toolCalls) {
+    const functionName = toolCall.function.name;
+    const functionArgs = JSON.parse(toolCall.function.arguments);
+    
+    console.log('Processing function call:', functionName, 'with args:', functionArgs);
+
+    try {
+      let output;
+      switch (functionName) {
+        case 'fetch_user_transactions':
+          output = await getTransactionsContext(supabase, functionArgs.user_id);
+          break;
+        case 'add_income':
+          output = await addIncomeTransaction(
+            supabase,
+            functionArgs.user_id,
+            functionArgs.amount,
+            functionArgs.source,
+            functionArgs.date,
+            functionArgs.category
+          );
+          break;
+        case 'add_expense':
+          output = await addExpenseTransaction(
+            supabase,
+            functionArgs.user_id,
+            functionArgs.amount,
+            functionArgs.category,
+            functionArgs.date
+          );
+          break;
+        case 'get_pdf_images':
+          output = await getPDFImages(supabase, functionArgs.document_id);
+          break;
+        default:
+          throw new Error(`Function ${functionName} not implemented`);
+      }
+
+      toolOutputs.push({
+        tool_call_id: toolCall.id,
+        output: JSON.stringify(output)
+      });
+    } catch (error) {
+      console.error(`Error processing ${functionName}:`, error);
+      throw error;
+    }
+  }
+
+  const submitResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/submit_tool_outputs`, {
+    method: 'POST',
+    headers: {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
       'OpenAI-Beta': 'assistants=v2'
-    };
+    },
+    body: JSON.stringify({ tool_outputs: toolOutputs })
+  });
 
-    // Create or retrieve thread
-    let threadId;
-    try {
-      if (existingThreadId) {
-        threadId = existingThreadId;
-      } else {
-        const response = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads`, {
-          method: 'POST',
-          headers
-        }));
-        const thread = await response.json();
-        if (!thread.id) throw new Error('No thread ID received from OpenAI');
-        threadId = thread.id;
-      }
-      console.log('Thread created/retrieved:', threadId);
-    } catch (error) {
-      console.error('Error creating/retrieving thread:', error);
-      throw error;
-    }
-
-    // Add the message to the thread
-    try {
-      const messageResponse = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads/${threadId}/messages`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          role: "user",
-          content: fileUrl ? `${prompt}\nImage URL: ${fileUrl}` : prompt
-        })
-      }));
-      await messageResponse.json();
-      console.log('Message added to thread');
-    } catch (error) {
-      console.error('Error adding message to thread:', error);
-      throw error;
-    }
-
-    // Run the assistant
-    let run;
-    try {
-      const runResponse = await checkResponseStatus(await fetch(`${OPENAI_API_BASE}/threads/${threadId}/runs`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          assistant_id: ASSISTANT_ID,
-          model: "gpt-4o" // Updated to use gpt-4o model
-        })
-      }));
-      run = await runResponse.json();
-      if (!run.id) throw new Error('No run ID received from OpenAI');
-      console.log('Assistant run created:', run.id);
-    } catch (error) {
-      console.error('Error creating assistant run:', error);
-      throw error;
-    }
-
-    // Poll for completion
-    let runStatus;
-    let attempts = 0;
-    const maxAttempts = 30;
-    const pollInterval = 1000;
-
-    while (attempts < maxAttempts) {
-      try {
-        const statusResponse = await checkResponseStatus(await fetch(
-          `${OPENAI_API_BASE}/threads/${threadId}/runs/${run.id}`,
-          { headers }
-        ));
-        runStatus = await statusResponse.json();
-        
-        if (!runStatus || !runStatus.status) {
-          throw new Error('Invalid run status response from OpenAI');
-        }
-        
-        console.log('Run status:', runStatus.status, 'Attempt:', attempts + 1);
-        
-        if (runStatus.status === 'completed') {
-          break;
-        } else if (['failed', 'cancelled', 'expired'].includes(runStatus.status)) {
-          const errorDetails = runStatus.last_error 
-            ? `Error: ${runStatus.last_error.code} - ${runStatus.last_error.message}`
-            : 'No detailed error information available';
-          console.error('Run failed with details:', errorDetails);
-          throw new Error(`Run failed: ${errorDetails}`);
-        }
-
-        if (attempts === maxAttempts - 1) {
-          throw new Error('Maximum polling attempts reached');
-        }
-
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-        attempts++;
-      } catch (error) {
-        console.error('Error polling run status:', error);
-        throw error;
-      }
-    }
-
-    if (runStatus.status === 'completed') {
-      try {
-        const messagesResponse = await checkResponseStatus(await fetch(
-          `${OPENAI_API_BASE}/threads/${threadId}/messages`,
-          { headers }
-        ));
-        const messages = await messagesResponse.json();
-        
-        if (!messages.data || !messages.data[0] || !messages.data[0].content) {
-          throw new Error('Invalid messages response from OpenAI');
-        }
-        
-        const lastMessage = messages.data[0];
-        const generatedText = lastMessage.content[0].type === 'text' ? lastMessage.content[0].text.value : '';
-
-        console.log('Generated response successfully');
-
-        return new Response(
-          JSON.stringify({ 
-            generatedText,
-            threadId
-          }),
-          {
-            headers: { 
-              ...corsHeaders,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-      } catch (error) {
-        console.error('Error retrieving messages:', error);
-        throw error;
-      }
-    } else {
-      throw new Error(`Run failed with final status: ${runStatus?.status}`);
-    }
-  } catch (error) {
-    console.error('Error in generate-response:', error);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'An unknown error occurred'
-      }),
-      { 
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+  if (!submitResponse.ok) {
+    const errorData = await submitResponse.text();
+    throw new Error(`Failed to submit tool outputs: ${submitResponse.status} ${errorData}`);
   }
-});
+
+  return await submitResponse.json();
+}
