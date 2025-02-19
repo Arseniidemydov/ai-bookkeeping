@@ -31,7 +31,7 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Beta': 'assistants=v1',
+          'OpenAI-Beta': 'assistants=v2',
           'Content-Type': 'application/json'
         }
       });
@@ -51,7 +51,7 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'assistants=v1',
+        'OpenAI-Beta': 'assistants=v2',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -68,7 +68,7 @@ serve(async (req) => {
     const runsListResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs`, {
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'assistants=v1'
+        'OpenAI-Beta': 'assistants=v2'
       }
     });
 
@@ -90,7 +90,7 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'OpenAI-Beta': 'assistants=v1'
+            'OpenAI-Beta': 'assistants=v2'
           }
         }
       );
@@ -104,7 +104,7 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'assistants=v1',
+        'OpenAI-Beta': 'assistants=v2',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -129,7 +129,7 @@ serve(async (req) => {
         {
           headers: {
             'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'OpenAI-Beta': 'assistants=v1'
+            'OpenAI-Beta': 'assistants=v2'
           }
         }
       );
@@ -147,7 +147,7 @@ serve(async (req) => {
           {
             headers: {
               'Authorization': `Bearer ${OPENAI_API_KEY}`,
-              'OpenAI-Beta': 'assistants=v1'
+              'OpenAI-Beta': 'assistants=v2'
             }
           }
         );
