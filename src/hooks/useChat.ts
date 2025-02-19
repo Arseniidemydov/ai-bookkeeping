@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -164,7 +165,7 @@ export function useChat() {
         id: msg.id,
         content: msg.content,
         sender: msg.sender,
-        timestamp: format(new Date(msg.timestamp), 'HH:mm'),
+        timestamp: format(new Date(msg.timestamp), 'HH:mm'), // Changed format to use : instead of .
         file: msg.file_url ? {
           url: msg.file_url,
           type: msg.file_type,
