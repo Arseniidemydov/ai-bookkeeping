@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,11 +70,17 @@ export function useChat() {
               threadId: threadId,
               fileUrl: fileUrl
             },
+            // Remove headers to prevent DataCloneError
+            headers: {}
           });
 
           if (response.error) {
             console.error('Error from generate-response:', response.error);
             throw response.error;
+          }
+
+          if (!response.data) {
+            throw new Error('No response data received');
           }
 
           if (response.data.threadId && !threadId) {
