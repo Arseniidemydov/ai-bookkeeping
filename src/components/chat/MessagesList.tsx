@@ -27,6 +27,11 @@ export function MessagesList({ messages, isTyping, messagesEndRef }: MessagesLis
   const containerRef = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 15;
 
+  // Scroll to bottom when messages change or typing state changes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
+
   useEffect(() => {
     // Initially show only the most recent messages
     if (messages.length > 0) {
@@ -34,7 +39,7 @@ export function MessagesList({ messages, isTyping, messagesEndRef }: MessagesLis
       setDisplayedMessages(initialMessages);
       // Scroll to bottom after initial load
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView();
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
   }, [messages]);
