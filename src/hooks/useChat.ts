@@ -1,8 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface Message {
   id: number;
@@ -17,7 +17,7 @@ interface Message {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // Increased to 2 seconds
+const RETRY_DELAY = 2000;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -92,7 +92,6 @@ export function useChat() {
             throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
           }
           
-          // Wait before retrying with exponential backoff
           await delay(RETRY_DELAY * Math.pow(2, retries - 1));
         }
       }
@@ -165,10 +164,7 @@ export function useChat() {
         id: msg.id,
         content: msg.content,
         sender: msg.sender,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { 
-          hour: "2-digit", 
-          minute: "2-digit" 
-        }),
+        timestamp: format(new Date(msg.timestamp), 'HH:mm'),
         file: msg.file_url ? {
           url: msg.file_url,
           type: msg.file_type,

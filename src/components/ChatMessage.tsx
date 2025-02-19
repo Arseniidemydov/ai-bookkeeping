@@ -40,7 +40,6 @@ const isHTML = (str: string) => {
 
 const downloadPDF = async (content: string) => {
   try {
-    // Create a temporary div to hold the HTML content
     const element = document.createElement('div');
     element.innerHTML = content;
     element.style.padding = '20px';
@@ -68,16 +67,13 @@ const downloadPDF = async (content: string) => {
       }
     };
 
-    // Convert to PDF
     await html2pdf().set(opt).from(element).save();
 
-    // Clean up
     document.body.removeChild(element);
     toast.success("Report downloaded as PDF");
   } catch (error) {
     console.error('Error generating PDF:', error);
     toast.error("Failed to generate PDF. Downloading as HTML instead.");
-    // Fallback to HTML download
     const blob = new Blob([content], { type: 'text/html' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -146,8 +142,8 @@ export function ChatMessage({ content, sender, timestamp, file }: ChatMessagePro
             formatBoldText(content)
           )}
         </div>
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-white/60">{timestamp}</span>
+        <div className="flex justify-end mt-2">
+          <span className="text-[11px] text-white/60 whitespace-nowrap">{timestamp}</span>
         </div>
       </div>
     </div>
