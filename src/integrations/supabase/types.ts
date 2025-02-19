@@ -45,6 +45,30 @@ export type Database = {
         }
         Relationships: []
       }
+      device_tokens: {
+        Row: {
+          created_at: string
+          id: number
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       document_pages: {
         Row: {
           created_at: string | null
@@ -107,6 +131,36 @@ export type Database = {
         }
         Relationships: []
       }
+      plaid_connections: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          id: string
+          institution_name: string | null
+          item_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          id?: string
+          institution_name?: string | null
+          item_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          id?: string
+          institution_name?: string | null
+          item_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           business_description: string | null
@@ -147,6 +201,7 @@ export type Database = {
           created_at: string | null
           date: string | null
           description: string | null
+          document_page_id: string | null
           id: number
           type: string | null
           user_id: string
@@ -157,6 +212,7 @@ export type Database = {
           created_at?: string | null
           date?: string | null
           description?: string | null
+          document_page_id?: string | null
           id?: number
           type?: string | null
           user_id: string
@@ -167,11 +223,20 @@ export type Database = {
           created_at?: string | null
           date?: string | null
           description?: string | null
+          document_page_id?: string | null
           id?: number
           type?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "transactions_document_page_id_fkey"
+            columns: ["document_page_id"]
+            isOneToOne: false
+            referencedRelation: "document_pages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
