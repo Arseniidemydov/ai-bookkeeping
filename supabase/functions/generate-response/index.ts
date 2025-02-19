@@ -21,9 +21,10 @@ if (!openAIApiKey) {
   throw new Error('OPENAI_API_KEY environment variable is not set');
 }
 
-const MAX_ATTEMPTS = 10; // Increased to allow more time
-const INITIAL_CHECK_DELAY = 1000; // Start with 1 second
-const MAX_CHECK_DELAY = 3000; // Maximum 3 seconds between checks
+// Reduced attempts but increased initial delay for better success rate
+const MAX_ATTEMPTS = 5;
+const INITIAL_DELAY = 2000; // Start with 2 seconds
+const MAX_TOTAL_TIME = 15000; // Maximum 15 seconds total wait time
 
 serve(async (req) => {
   const corsResponse = handleCORS(req);
@@ -60,12 +61,19 @@ serve(async (req) => {
     let run = await startAssistantRun(currentThreadId);
     console.log('Run started with ID:', run.id);
     
+    const startTime = Date.now();
     let runStatusData = await getRunStatus(currentThreadId, run.id);
     let attempts = 0;
 
     while (attempts < MAX_ATTEMPTS) {
       console.log(`Run status check #${attempts + 1}. Status: ${runStatusData.status}`);
       
+      // Check if we've exceeded our total time limit
+      if (Date.now() - startTime > MAX_TOTAL_TIME) {
+        console.error('Exceeded maximum total time limit');
+        throw new Error('The request is taking longer than expected. Please try again.');
+      }
+
       if (runStatusData.status === 'completed') {
         const messages = await getAssistantMessages(currentThreadId);
         const assistantMessage = messages.data.find((msg: any) => 
@@ -87,12 +95,10 @@ serve(async (req) => {
       if (['failed', 'expired', 'cancelled'].includes(runStatusData.status)) {
         // Handle rate limits specifically
         if (runStatusData.last_error?.code === 'rate_limit_exceeded') {
-          console.log('Rate limit exceeded. Starting new run...');
-          // Wait for 2 seconds before retrying on rate limit
+          console.log('Rate limit exceeded. Retrying...');
           await new Promise(resolve => setTimeout(resolve, 2000));
           run = await startAssistantRun(currentThreadId);
           runStatusData = await getRunStatus(currentThreadId, run.id);
-          attempts++;
           continue;
         }
 
@@ -101,20 +107,16 @@ serve(async (req) => {
         throw new Error(error);
       }
       
-      // Calculate delay with progressive increase
-      const delay = Math.min(
-        INITIAL_CHECK_DELAY + (attempts * 500), // Progressive increase
-        MAX_CHECK_DELAY
-      );
+      const currentDelay = INITIAL_DELAY;
+      console.log(`Waiting ${currentDelay}ms before next status check...`);
+      await new Promise(resolve => setTimeout(resolve, currentDelay));
       
-      console.log(`Waiting ${delay}ms before next status check...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
       runStatusData = await getRunStatus(currentThreadId, run.id);
       attempts++;
     }
 
-    console.error('Run did not complete in time. Final status:', runStatusData.status);
-    throw new Error('The assistant is taking too long to respond. Please try again.');
+    console.error('Maximum attempts reached. Final status:', runStatusData.status);
+    throw new Error('Unable to get a response from the assistant. Please try again.');
   } catch (error) {
     console.error('Error in generate-response function:', error);
     return new Response(JSON.stringify({ error: error.message }), {
