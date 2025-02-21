@@ -28,13 +28,19 @@ export async function getTransactionsContext(supabase: any, userId: string) {
   }
 }
 
-export async function addIncomeTransaction(supabase: any, userId: string, amount: number, source: string) {
+export async function addIncomeTransaction(
+  supabase: any, 
+  userId: string, 
+  amount: number, 
+  source: string, 
+  date: string,
+  category: string
+) {
   if (!userId) {
     throw new Error('User ID is required for adding income transaction');
   }
 
   try {
-    const date = new Date().toISOString();
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
@@ -42,7 +48,7 @@ export async function addIncomeTransaction(supabase: any, userId: string, amount
         amount: amount,
         type: 'income',
         description: source,
-        category: source,
+        category: category,
         date: date
       }])
       .select()
@@ -61,28 +67,27 @@ export async function addIncomeTransaction(supabase: any, userId: string, amount
   }
 }
 
-export async function addExpenseTransaction(supabase: any, userId: string, amount: number, category: string, date: string) {
+export async function addExpenseTransaction(
+  supabase: any, 
+  userId: string, 
+  amount: number, 
+  category: string,
+  date: string
+) {
   if (!userId) {
     throw new Error('User ID is required for adding expense transaction');
   }
 
   try {
-    // Parse and validate date format (DD-MM-YYYY)
-    const dateParts = date.split('-');
-    if (dateParts.length !== 3) {
-      throw new Error('Invalid date format. Expected DD-MM-YYYY');
-    }
-    const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; // Convert to YYYY-MM-DD
-
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
         user_id: userId,
-        amount: amount, // Store the original amount
+        amount: -Math.abs(amount), // Ensure expense is negative
         type: 'expense',
         description: category,
         category: category,
-        date: formattedDate
+        date: date
       }])
       .select()
       .single();

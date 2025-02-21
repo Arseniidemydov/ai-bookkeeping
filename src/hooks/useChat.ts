@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,7 +16,10 @@ interface Message {
   };
 }
 
-const RETRY_DELAY = 1000;
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // Increased to 2 seconds
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,42 +56,49 @@ export function useChat() {
         throw new Error("User not authenticated");
       }
 
-      try {
-        console.log('Sending message to assistant...');
-        const response = await supabase.functions.invoke('generate-response', {
-          body: { 
-            prompt: message,
-            userId: session.session.user.id,
-            threadId: threadId,
-            fileUrl: fileUrl
+      let lastError;
+      let retries = 0;
+
+      while (retries < MAX_RETRIES) {
+        try {
+          console.log(`Attempt ${retries + 1} to send message...`);
+          
+          const response = await supabase.functions.invoke('generate-response', {
+            body: { 
+              prompt: message,
+              userId: session.session.user.id,
+              threadId: threadId,
+              fileUrl: fileUrl
+            },
+          });
+
+          if (response.error) {
+            console.error('Error from generate-response:', response.error);
+            throw response.error;
           }
-        });
 
-        if (response.error) {
-          console.error('Error from generate-response:', response.error);
-          throw new Error(response.error.message || 'Failed to get response from assistant');
+          if (response.data.threadId && !threadId) {
+            setThreadId(response.data.threadId);
+          }
+
+          return response.data.generatedText;
+        } catch (error) {
+          lastError = error;
+          retries++;
+          console.error(`Attempt ${retries} failed:`, error);
+          
+          if (retries === MAX_RETRIES) {
+            toast.error("Failed to get response. Please try again.");
+            throw new Error(`Failed to generate response after ${MAX_RETRIES} attempts: ${error.message}`);
+          }
+          
+          // Wait before retrying with exponential backoff
+          await delay(RETRY_DELAY * Math.pow(2, retries - 1));
         }
-
-        if (!response.data) {
-          throw new Error('No response received from assistant');
-        }
-
-        if (response.data.threadId && !threadId) {
-          setThreadId(response.data.threadId);
-        }
-
-        return response.data.generatedText;
-      } catch (error) {
-        console.error('Chat mutation error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to process message';
-        toast.error(errorMessage);
-        throw error;
       }
+
+      throw lastError;
     },
-    onError: (error) => {
-      console.error('Chat mutation error:', error);
-      toast.error('Failed to get response from assistant. Please try again.');
-    }
   });
 
   const saveMutation = useMutation({

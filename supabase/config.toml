@@ -2,7 +2,7 @@
 project_id = "pqfawxyxvjocxfhsjdec"
 
 [functions.generate-response]
-verify_jwt = true
+verify_jwt = false
 
 [storage]
 [storage.buckets]
