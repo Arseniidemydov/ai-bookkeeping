@@ -32,9 +32,7 @@ export async function addIncomeTransaction(
   supabase: any, 
   userId: string, 
   amount: number, 
-  source: string, 
-  date: string,
-  category: string
+  source: string
 ) {
   if (!userId) {
     throw new Error('User ID is required for adding income transaction');
@@ -48,8 +46,8 @@ export async function addIncomeTransaction(
         amount: amount,
         type: 'income',
         description: source,
-        category: category,
-        date: date
+        category: source,
+        date: new Date().toISOString().split('T')[0] // Just get YYYY-MM-DD
       }])
       .select()
       .single();
@@ -71,7 +69,7 @@ export async function addExpenseTransaction(
   supabase: any, 
   userId: string, 
   amount: number, 
-  category: string,
+  category: string, 
   date: string
 ) {
   if (!userId) {
@@ -79,15 +77,31 @@ export async function addExpenseTransaction(
   }
 
   try {
+    // Convert DD-MM-YYYY to YYYY-MM-DD
+    const [day, month, year] = date.split('-');
+    if (!day || !month || !year || isNaN(+day) || isNaN(+month) || isNaN(+year)) {
+      throw new Error('Invalid date format. Expected DD-MM-YYYY');
+    }
+    
+    const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    
+    // Validate the date is reasonable
+    const dateObj = new Date(formattedDate);
+    if (isNaN(dateObj.getTime())) {
+      throw new Error('Invalid date');
+    }
+
+    console.log('Inserting expense with formatted date:', formattedDate);
+
     const { data, error } = await supabase
       .from('transactions')
       .insert([{
         user_id: userId,
-        amount: -Math.abs(amount), // Ensure expense is negative
+        amount: -Math.abs(amount), // Ensure expense is stored as negative
         type: 'expense',
         description: category,
         category: category,
-        date: date
+        date: formattedDate
       }])
       .select()
       .single();
