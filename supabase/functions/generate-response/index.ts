@@ -1,163 +1,172 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from './utils/cors.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
+import { corsHeaders, handleCORS } from './utils/cors.ts';
+import {
+  createThread,
+  addMessageToThread,
+  startAssistantRun,
+  getRunStatus,
+  getAssistantMessages,
+  cancelActiveRun
+} from './services/assistant.ts';
+import { addExpenseTransaction, addIncomeTransaction, getTransactionsContext } from './services/transactions.ts';
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const OPENAI_ASSISTANT_ID = Deno.env.get('OPENAI_ASSISTANT_ID');
-
-if (!OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY environment variable is not set');
-}
-
-if (!OPENAI_ASSISTANT_ID) {
-  throw new Error('OPENAI_ASSISTANT_ID environment variable is not set');
-}
+const POLLING_INTERVAL = 500; // 500ms between checks
+const MAX_POLLING_ATTEMPTS = 60; // 30 seconds total (60 * 500ms)
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
   try {
+    // Handle CORS
+    const corsResponse = handleCORS(req);
+    if (corsResponse) return corsResponse;
+
     const { prompt, userId, threadId, fileUrl } = await req.json();
-    console.log('Processing request:', { userId, threadId, hasFileUrl: !!fileUrl });
 
     if (!userId) {
       throw new Error('User ID is required');
     }
 
-    // Create or use existing thread
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get or create thread
     let currentThreadId = threadId;
     if (!currentThreadId) {
-      const threadResponse = await fetch('https://api.openai.com/v1/threads', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Beta': 'assistants=v2',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!threadResponse.ok) {
-        throw new Error(`Failed to create thread: ${await threadResponse.text()}`);
-      }
-
-      const threadData = await threadResponse.json();
-      currentThreadId = threadData.id;
+      currentThreadId = await createThread();
       console.log('Created new thread:', currentThreadId);
     }
 
     // Add message to thread
-    const messageContent = fileUrl ? `${prompt}\nImage: ${fileUrl}` : prompt;
-    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'assistants=v2',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        role: 'user',
-        content: messageContent
-      })
-    });
+    await addMessageToThread(currentThreadId, prompt, fileUrl);
 
-    if (!messageResponse.ok) {
-      throw new Error(`Failed to add message: ${await messageResponse.text()}`);
-    }
+    // Start the run
+    const run = await startAssistantRun(currentThreadId);
+    console.log('Started run:', run.id);
 
-    // Start a new run
-    const runResponse = await fetch(`https://api.openai.com/v1/threads/${currentThreadId}/runs`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'assistants=v2',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        assistant_id: OPENAI_ASSISTANT_ID
-      })
-    });
-
-    if (!runResponse.ok) {
-      throw new Error(`Failed to start run: ${await runResponse.text()}`);
-    }
-
-    const run = await runResponse.json();
-    console.log('Started new run:', run.id);
-
-    // Poll for completion
+    // Poll for completion with timeout
     let attempts = 0;
-    const maxAttempts = 30;
+    let runStatus;
     
-    while (attempts < maxAttempts) {
-      const statusResponse = await fetch(
-        `https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'OpenAI-Beta': 'assistants=v2'
-          }
-        }
-      );
+    while (attempts < MAX_POLLING_ATTEMPTS) {
+      runStatus = await getRunStatus(currentThreadId, run.id);
+      console.log(`Run status (attempt ${attempts + 1}):`, runStatus.status);
 
-      if (!statusResponse.ok) {
-        throw new Error(`Failed to get run status: ${await statusResponse.text()}`);
+      if (runStatus.status === 'completed') {
+        break;
       }
 
-      const status = await statusResponse.json();
-      console.log('Run status:', status.status);
+      if (['failed', 'cancelled', 'expired'].includes(runStatus.status)) {
+        throw new Error(`Run ${runStatus.status}: ${runStatus.last_error?.message || 'Unknown error'}`);
+      }
 
-      if (status.status === 'completed') {
-        const messagesResponse = await fetch(
-          `https://api.openai.com/v1/threads/${currentThreadId}/messages`,
-          {
-            headers: {
-              'Authorization': `Bearer ${OPENAI_API_KEY}`,
-              'OpenAI-Beta': 'assistants=v2'
+      if (runStatus.status === 'requires_action') {
+        console.log('Function calling:', runStatus.required_action);
+        const toolCalls = runStatus.required_action.submit_tool_outputs.tool_calls;
+        
+        const toolOutputs = await Promise.all(toolCalls.map(async (toolCall: any) => {
+          const { name, arguments: args } = toolCall.function;
+          const parsedArgs = JSON.parse(args);
+          let output = '';
+
+          console.log(`Executing function ${name} with args:`, parsedArgs);
+
+          try {
+            switch (name) {
+              case 'fetch_user_transactions':
+                output = await getTransactionsContext(supabase, parsedArgs.user_id);
+                break;
+              case 'add_expense':
+                output = await addExpenseTransaction(
+                  supabase,
+                  parsedArgs.user_id,
+                  parsedArgs.amount,
+                  parsedArgs.category,
+                  parsedArgs.date
+                );
+                break;
+              case 'add_income':
+                output = await addIncomeTransaction(
+                  supabase,
+                  parsedArgs.user_id,
+                  parsedArgs.amount,
+                  parsedArgs.source
+                );
+                break;
+              default:
+                console.warn('Unknown function called:', name);
+                output = JSON.stringify({ error: 'Function not implemented' });
             }
+          } catch (error) {
+            console.error(`Error executing function ${name}:`, error);
+            output = JSON.stringify({ error: error.message });
+          }
+
+          return {
+            tool_call_id: toolCall.id,
+            output
+          };
+        }));
+
+        // Submit tool outputs back to the run
+        const submitResponse = await fetch(
+          `https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}/submit_tool_outputs`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify({ tool_outputs: toolOutputs })
           }
         );
 
-        if (!messagesResponse.ok) {
-          throw new Error(`Failed to get messages: ${await messagesResponse.text()}`);
+        if (!submitResponse.ok) {
+          throw new Error(`Failed to submit tool outputs: ${await submitResponse.text()}`);
         }
-
-        const messages = await messagesResponse.json();
-        const assistantMessage = messages.data.find((msg: any) => 
-          msg.role === 'assistant' && msg.content?.[0]?.text?.value
-        );
-
-        if (!assistantMessage?.content[0]?.text?.value) {
-          throw new Error('No valid response content found');
-        }
-
-        return new Response(JSON.stringify({
-          generatedText: assistantMessage.content[0].text.value,
-          threadId: currentThreadId
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
       }
 
-      if (['failed', 'expired', 'cancelled'].includes(status.status)) {
-        throw new Error(`Run failed with status: ${status.status}`);
-      }
-
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
       attempts++;
-      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    throw new Error('Response timeout');
+    if (attempts >= MAX_POLLING_ATTEMPTS) {
+      await cancelActiveRun(currentThreadId, run.id);
+      throw new Error('Response timeout');
+    }
+
+    // Get the latest messages
+    const messages = await getAssistantMessages(currentThreadId);
+    const assistantMessage = messages.data.find((msg: any) => 
+      msg.role === 'assistant' && 
+      msg.content?.[0]?.text?.value &&
+      msg.created_at > run.created_at
+    );
+
+    if (!assistantMessage?.content[0]?.text?.value) {
+      throw new Error('No valid response content found');
+    }
+
+    return new Response(
+      JSON.stringify({
+        generatedText: assistantMessage.content[0].text.value,
+        threadId: currentThreadId
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
   } catch (error) {
     console.error('Fatal error in generate-response:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || 'An unexpected error occurred'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
 });
