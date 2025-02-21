@@ -1,11 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.21.0';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders } from '../generate-response/utils/cors.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -14,14 +10,20 @@ serve(async (req) => {
   }
 
   try {
-    // Get request body
-    const { amount, category, date, userId } = await req.json();
-    console.log('Received expense data:', { amount, category, date, userId });
+    const { user_id, amount, category, date } = await req.json();
+    console.log('Adding expense:', { user_id, amount, category, date });
 
     // Validate required fields
-    if (!amount || !category || !date || !userId) {
-      throw new Error('Missing required fields: amount, category, date, and userId are required');
+    if (!user_id || !amount || !category || !date) {
+      throw new Error('Missing required fields');
     }
+
+    // Parse and validate date format (DD-MM-YYYY)
+    const dateParts = date.split('-');
+    if (dateParts.length !== 3) {
+      throw new Error('Invalid date format. Expected DD-MM-YYYY');
+    }
+    const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; // Convert to YYYY-MM-DD
 
     // Initialize Supabase client
     const supabaseClient = createClient(
@@ -35,15 +37,15 @@ serve(async (req) => {
       }
     );
 
-    // Insert transaction
+    // Insert the expense into the transactions table
     const { data, error } = await supabaseClient
       .from('transactions')
       .insert([
         {
-          user_id: userId,
-          amount: -Math.abs(amount), // Ensure expense is stored as negative
+          user_id,
+          amount,
           category,
-          date,
+          date: formattedDate,
           type: 'expense'
         }
       ])
@@ -55,10 +57,13 @@ serve(async (req) => {
       throw error;
     }
 
-    console.log('Successfully added expense:', data);
+    console.log('Expense added successfully:', data);
 
     return new Response(
-      JSON.stringify({ success: true, data }),
+      JSON.stringify({
+        success: true,
+        data
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -66,8 +71,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in add-expense function:', error);
-    
+    console.error('Error in add-expense:', error);
     return new Response(
       JSON.stringify({
         success: false,
