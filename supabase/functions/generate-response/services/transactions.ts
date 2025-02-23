@@ -1,5 +1,5 @@
 
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
 
 export async function getTransactionsContext(supabase: SupabaseClient, userId: string) {
   const { data: transactions, error } = await supabase
