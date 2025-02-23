@@ -13,24 +13,33 @@ import {
 } from './services/assistant.ts';
 import { addExpenseTransaction, addIncomeTransaction, getTransactionsContext } from './services/transactions.ts';
 
-const POLLING_INTERVAL = 300;
-const MAX_POLLING_ATTEMPTS = 10;
-const SAFETY_DELAY = 2000; // Increased to 2 seconds
+const POLLING_INTERVAL = 1000; // Increased to 1 second
+const MAX_POLLING_ATTEMPTS = 30;  // Increased to 30 attempts (30 seconds total)
+const SAFETY_DELAY = 2000;
 
 async function waitForRunToComplete(threadId: string, runId: string) {
   let attempts = 0;
   while (attempts < MAX_POLLING_ATTEMPTS) {
-    const status = await getRunStatus(threadId, runId);
-    console.log(`Run ${runId} status: ${status.status} (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS})`);
-    
-    if (['completed', 'failed', 'cancelled', 'expired'].includes(status.status)) {
-      return status;
+    try {
+      const status = await getRunStatus(threadId, runId);
+      console.log(`Run ${runId} status: ${status.status} (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS})`);
+      
+      if (['completed', 'failed', 'cancelled', 'expired'].includes(status.status)) {
+        return status;
+      }
+      
+      // Use exponential backoff for polling
+      const delay = Math.min(POLLING_INTERVAL * Math.pow(1.5, attempts), 5000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      attempts++;
+    } catch (error) {
+      console.error(`Error checking run status (attempt ${attempts + 1}):`, error);
+      // On error, wait a bit longer before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
     }
-    
-    await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
-    attempts++;
   }
-  throw new Error(`Run ${runId} did not complete within the timeout period`);
+  throw new Error(`Run ${runId} did not complete within the timeout period (${MAX_POLLING_ATTEMPTS * POLLING_INTERVAL / 1000} seconds)`);
 }
 
 async function waitForActiveRuns(threadId: string) {
