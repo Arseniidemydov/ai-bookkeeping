@@ -9,12 +9,13 @@ import {
   startAssistantRun,
   getRunStatus,
   getAssistantMessages,
-  cancelActiveRun
+  cancelActiveRun,
+  listActiveRuns
 } from './services/assistant.ts';
 import { addExpenseTransaction, addIncomeTransaction, getTransactionsContext } from './services/transactions.ts';
 
-const POLLING_INTERVAL = 300; // 300ms between checks
-const MAX_POLLING_ATTEMPTS = 10; // 3 seconds total (10 * 300ms)
+const POLLING_INTERVAL = 300;
+const MAX_POLLING_ATTEMPTS = 10;
 
 serve(async (req) => {
   try {
@@ -40,6 +41,15 @@ serve(async (req) => {
       console.log('Created new thread:', currentThreadId);
     }
 
+    // Check for and cancel any active runs
+    const activeRuns = await listActiveRuns(currentThreadId);
+    for (const run of activeRuns.data) {
+      if (['in_progress', 'queued'].includes(run.status)) {
+        console.log(`Cancelling active run: ${run.id}`);
+        await cancelActiveRun(currentThreadId, run.id);
+      }
+    }
+
     // Add message to thread
     await addMessageToThread(currentThreadId, prompt, fileUrl);
 
@@ -60,7 +70,6 @@ serve(async (req) => {
       }
 
       if (['failed', 'cancelled', 'expired'].includes(runStatus.status)) {
-        // Immediately throw error for failed states
         throw new Error(`Run ${runStatus.status}: ${runStatus.last_error?.message || 'Unknown error'}`);
       }
 
@@ -68,7 +77,6 @@ serve(async (req) => {
         console.log('Function calling:', runStatus.required_action);
         const toolCalls = runStatus.required_action.submit_tool_outputs.tool_calls;
         
-        // Process all tool calls in parallel
         const toolOutputs = await Promise.all(toolCalls.map(async (toolCall: any) => {
           const { name, arguments: args } = toolCall.function;
           const parsedArgs = JSON.parse(args);
@@ -101,14 +109,13 @@ serve(async (req) => {
               default:
                 throw new Error(`Unknown function: ${name}`);
             }
-            return { tool_call_id: toolCall.id, output };
+            return { tool_call_id: toolCall.id, output: JSON.stringify(output) };
           } catch (error) {
             console.error(`Error executing ${name}:`, error);
-            throw error; // Let the error bubble up immediately
+            throw error;
           }
         }));
 
-        // Submit tool outputs
         const submitResponse = await fetch(
           `https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}/submit_tool_outputs`,
           {
@@ -127,7 +134,6 @@ serve(async (req) => {
         }
       }
 
-      // Short wait before next check
       await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
       attempts++;
     }

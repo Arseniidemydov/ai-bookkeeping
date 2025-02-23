@@ -1,4 +1,3 @@
-
 import { processImageWithOCR } from './ocr.ts';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -259,6 +258,22 @@ export async function getAssistantMessages(threadId: string) {
   if (!response.ok) {
     const errorData = await response.text();
     throw new Error(`Failed to get messages: ${response.status} ${errorData}`);
+  }
+
+  return await response.json();
+}
+
+export async function listActiveRuns(threadId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to list runs: ${response.status} ${errorData}`);
   }
 
   return await response.json();
