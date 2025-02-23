@@ -114,7 +114,7 @@ export async function startAssistantRun(threadId: string) {
         },
         body: JSON.stringify({
           assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
-          model: 'gpt-4',
+          model: 'gpt-4o',
           temperature: 0.7,
           tools: [
             {
@@ -144,7 +144,9 @@ export async function startAssistantRun(threadId: string) {
                   "required": [
                     "user_id",
                     "amount",
-                    "source"
+                    "source",
+                    "date",
+                    "category"
                   ],
                   "properties": {
                     "user_id": {
@@ -158,6 +160,14 @@ export async function startAssistantRun(threadId: string) {
                     "source": {
                       "type": "string",
                       "description": "Source of the income (e.g., salary, freelance, etc.)."
+                    },
+                    "date": {
+                      "type": "string",
+                      "description": "The date of the income in DD-MM-YYYY format."
+                    },
+                    "category": {
+                      "type": "string",
+                      "description": "Category of the income (e.g., passive, active, investments, etc.)."
                     }
                   }
                 }
