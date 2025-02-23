@@ -14,8 +14,8 @@ serve(async (req) => {
     const { prompt, userId, threadId, fileUrl } = await req.json();
     console.log('Received request:', { prompt, userId, threadId, fileUrl });
 
-    if (!userId) {
-      throw new Error('User ID is required');
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Valid user ID (UUID) is required');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -47,6 +47,10 @@ serve(async (req) => {
         const toolOutputs = await Promise.all(toolCalls.map(async (toolCall: any) => {
           const { name, arguments: args } = toolCall.function;
           const parsedArgs = JSON.parse(args);
+          
+          // Ensure we're using the actual user ID from the request
+          parsedArgs.user_id = userId;
+          
           console.log(`Executing function ${name} with args:`, parsedArgs);
 
           let output;
