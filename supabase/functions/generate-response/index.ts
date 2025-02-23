@@ -15,24 +15,45 @@ import { addExpenseTransaction, addIncomeTransaction, getTransactionsContext } f
 
 const POLLING_INTERVAL = 300;
 const MAX_POLLING_ATTEMPTS = 10;
+const SAFETY_DELAY = 1000; // 1 second delay
 
 async function waitForActiveRuns(threadId: string) {
+  console.log('Checking for active runs on thread:', threadId);
   const activeRuns = await listActiveRuns(threadId);
-  if (!activeRuns.data || activeRuns.data.length === 0) return;
+  
+  if (!activeRuns.data || activeRuns.data.length === 0) {
+    console.log('No active runs found');
+    return;
+  }
 
+  console.log(`Found ${activeRuns.data.length} runs, checking their status...`);
+  
   for (const run of activeRuns.data) {
     if (['in_progress', 'queued'].includes(run.status)) {
+      console.log(`Waiting for run ${run.id} to complete...`);
       let attempts = 0;
       while (attempts < MAX_POLLING_ATTEMPTS) {
         const status = await getRunStatus(threadId, run.id);
+        console.log(`Run ${run.id} status: ${status.status} (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS})`);
+        
         if (['completed', 'failed', 'cancelled', 'expired'].includes(status.status)) {
+          console.log(`Run ${run.id} finished with status: ${status.status}`);
           break;
         }
+        
         await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
         attempts++;
       }
+      
+      if (attempts >= MAX_POLLING_ATTEMPTS) {
+        console.log(`Run ${run.id} did not complete within the timeout period`);
+      }
     }
   }
+  
+  // Add a safety delay after all runs are processed
+  console.log(`Adding safety delay of ${SAFETY_DELAY}ms before proceeding`);
+  await new Promise(resolve => setTimeout(resolve, SAFETY_DELAY));
 }
 
 serve(async (req) => {
@@ -63,6 +84,7 @@ serve(async (req) => {
     await waitForActiveRuns(currentThreadId);
 
     // Add message to thread
+    console.log('Adding message to thread:', currentThreadId);
     await addMessageToThread(currentThreadId, prompt, fileUrl);
 
     // Start the run
