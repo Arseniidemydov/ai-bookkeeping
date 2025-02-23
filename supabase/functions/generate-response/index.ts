@@ -9,13 +9,31 @@ import {
   startAssistantRun,
   getRunStatus,
   getAssistantMessages,
-  cancelActiveRun,
   listActiveRuns
 } from './services/assistant.ts';
 import { addExpenseTransaction, addIncomeTransaction, getTransactionsContext } from './services/transactions.ts';
 
 const POLLING_INTERVAL = 300;
 const MAX_POLLING_ATTEMPTS = 10;
+
+async function waitForActiveRuns(threadId: string) {
+  const activeRuns = await listActiveRuns(threadId);
+  if (!activeRuns.data || activeRuns.data.length === 0) return;
+
+  for (const run of activeRuns.data) {
+    if (['in_progress', 'queued'].includes(run.status)) {
+      let attempts = 0;
+      while (attempts < MAX_POLLING_ATTEMPTS) {
+        const status = await getRunStatus(threadId, run.id);
+        if (['completed', 'failed', 'cancelled', 'expired'].includes(status.status)) {
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
+        attempts++;
+      }
+    }
+  }
+}
 
 serve(async (req) => {
   try {
@@ -41,14 +59,8 @@ serve(async (req) => {
       console.log('Created new thread:', currentThreadId);
     }
 
-    // Check for and cancel any active runs
-    const activeRuns = await listActiveRuns(currentThreadId);
-    for (const run of activeRuns.data) {
-      if (['in_progress', 'queued'].includes(run.status)) {
-        console.log(`Cancelling active run: ${run.id}`);
-        await cancelActiveRun(currentThreadId, run.id);
-      }
-    }
+    // Wait for any active runs to complete
+    await waitForActiveRuns(currentThreadId);
 
     // Add message to thread
     await addMessageToThread(currentThreadId, prompt, fileUrl);
@@ -139,7 +151,6 @@ serve(async (req) => {
     }
 
     if (attempts >= MAX_POLLING_ATTEMPTS) {
-      await cancelActiveRun(currentThreadId, run.id);
       throw new Error('Response timeout - Assistant is taking too long to respond');
     }
 
