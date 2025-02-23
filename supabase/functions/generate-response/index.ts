@@ -15,7 +15,23 @@ import { addExpenseTransaction, addIncomeTransaction, getTransactionsContext } f
 
 const POLLING_INTERVAL = 300;
 const MAX_POLLING_ATTEMPTS = 10;
-const SAFETY_DELAY = 1000; // 1 second delay
+const SAFETY_DELAY = 2000; // Increased to 2 seconds
+
+async function waitForRunToComplete(threadId: string, runId: string) {
+  let attempts = 0;
+  while (attempts < MAX_POLLING_ATTEMPTS) {
+    const status = await getRunStatus(threadId, runId);
+    console.log(`Run ${runId} status: ${status.status} (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS})`);
+    
+    if (['completed', 'failed', 'cancelled', 'expired'].includes(status.status)) {
+      return status;
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
+    attempts++;
+  }
+  throw new Error(`Run ${runId} did not complete within the timeout period`);
+}
 
 async function waitForActiveRuns(threadId: string) {
   console.log('Checking for active runs on thread:', threadId);
@@ -26,28 +42,12 @@ async function waitForActiveRuns(threadId: string) {
     return;
   }
 
-  console.log(`Found ${activeRuns.data.length} runs, checking their status...`);
+  console.log(`Found ${activeRuns.data.length} active runs`);
   
   for (const run of activeRuns.data) {
-    if (['in_progress', 'queued'].includes(run.status)) {
-      console.log(`Waiting for run ${run.id} to complete...`);
-      let attempts = 0;
-      while (attempts < MAX_POLLING_ATTEMPTS) {
-        const status = await getRunStatus(threadId, run.id);
-        console.log(`Run ${run.id} status: ${status.status} (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS})`);
-        
-        if (['completed', 'failed', 'cancelled', 'expired'].includes(status.status)) {
-          console.log(`Run ${run.id} finished with status: ${status.status}`);
-          break;
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
-        attempts++;
-      }
-      
-      if (attempts >= MAX_POLLING_ATTEMPTS) {
-        console.log(`Run ${run.id} did not complete within the timeout period`);
-      }
+    if (['in_progress', 'queued', 'requires_action'].includes(run.status)) {
+      console.log(`Waiting for run ${run.id} (status: ${run.status}) to complete...`);
+      await waitForRunToComplete(threadId, run.id);
     }
   }
   
@@ -89,91 +89,73 @@ serve(async (req) => {
 
     // Start the run
     const run = await startAssistantRun(currentThreadId);
-    console.log('Started run:', run.id);
+    console.log('Started new run:', run.id);
 
-    // Poll for completion with timeout
-    let attempts = 0;
-    let runStatus;
+    // Wait for the run to complete
+    const finalStatus = await waitForRunToComplete(currentThreadId, run.id);
     
-    while (attempts < MAX_POLLING_ATTEMPTS) {
-      runStatus = await getRunStatus(currentThreadId, run.id);
-      console.log(`Run status (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS}):`, runStatus.status);
+    if (finalStatus.status === 'requires_action') {
+      console.log('Function calling:', finalStatus.required_action);
+      const toolCalls = finalStatus.required_action.submit_tool_outputs.tool_calls;
+      
+      const toolOutputs = await Promise.all(toolCalls.map(async (toolCall: any) => {
+        const { name, arguments: args } = toolCall.function;
+        const parsedArgs = JSON.parse(args);
+        let output;
 
-      if (runStatus.status === 'completed') {
-        break;
-      }
+        console.log(`Executing function ${name} with args:`, parsedArgs);
 
-      if (['failed', 'cancelled', 'expired'].includes(runStatus.status)) {
-        throw new Error(`Run ${runStatus.status}: ${runStatus.last_error?.message || 'Unknown error'}`);
-      }
-
-      if (runStatus.status === 'requires_action') {
-        console.log('Function calling:', runStatus.required_action);
-        const toolCalls = runStatus.required_action.submit_tool_outputs.tool_calls;
-        
-        const toolOutputs = await Promise.all(toolCalls.map(async (toolCall: any) => {
-          const { name, arguments: args } = toolCall.function;
-          const parsedArgs = JSON.parse(args);
-          let output;
-
-          console.log(`Executing function ${name} with args:`, parsedArgs);
-
-          try {
-            switch (name) {
-              case 'fetch_user_transactions':
-                output = await getTransactionsContext(supabase, parsedArgs.user_id);
-                break;
-              case 'add_expense':
-                output = await addExpenseTransaction(
-                  supabase,
-                  parsedArgs.user_id,
-                  parsedArgs.amount,
-                  parsedArgs.category,
-                  parsedArgs.date
-                );
-                break;
-              case 'add_income':
-                output = await addIncomeTransaction(
-                  supabase,
-                  parsedArgs.user_id,
-                  parsedArgs.amount,
-                  parsedArgs.source
-                );
-                break;
-              default:
-                throw new Error(`Unknown function: ${name}`);
-            }
-            return { tool_call_id: toolCall.id, output: JSON.stringify(output) };
-          } catch (error) {
-            console.error(`Error executing ${name}:`, error);
-            throw error;
+        try {
+          switch (name) {
+            case 'fetch_user_transactions':
+              output = await getTransactionsContext(supabase, parsedArgs.user_id);
+              break;
+            case 'add_expense':
+              output = await addExpenseTransaction(
+                supabase,
+                parsedArgs.user_id,
+                parsedArgs.amount,
+                parsedArgs.category,
+                parsedArgs.date
+              );
+              break;
+            case 'add_income':
+              output = await addIncomeTransaction(
+                supabase,
+                parsedArgs.user_id,
+                parsedArgs.amount,
+                parsedArgs.source
+              );
+              break;
+            default:
+              throw new Error(`Unknown function: ${name}`);
           }
-        }));
-
-        const submitResponse = await fetch(
-          `https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}/submit_tool_outputs`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-              'Content-Type': 'application/json',
-              'OpenAI-Beta': 'assistants=v2'
-            },
-            body: JSON.stringify({ tool_outputs: toolOutputs })
-          }
-        );
-
-        if (!submitResponse.ok) {
-          throw new Error(`Failed to submit tool outputs: ${await submitResponse.text()}`);
+          return { tool_call_id: toolCall.id, output: JSON.stringify(output) };
+        } catch (error) {
+          console.error(`Error executing ${name}:`, error);
+          throw error;
         }
+      }));
+
+      const submitResponse = await fetch(
+        `https://api.openai.com/v1/threads/${currentThreadId}/runs/${run.id}/submit_tool_outputs`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2'
+          },
+          body: JSON.stringify({ tool_outputs: toolOutputs })
+        }
+      );
+
+      if (!submitResponse.ok) {
+        throw new Error(`Failed to submit tool outputs: ${await submitResponse.text()}`);
       }
 
-      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
-      attempts++;
-    }
-
-    if (attempts >= MAX_POLLING_ATTEMPTS) {
-      throw new Error('Response timeout - Assistant is taking too long to respond');
+      // Wait for the run to complete after submitting tool outputs
+      await waitForRunToComplete(currentThreadId, run.id);
     }
 
     // Get the latest messages
