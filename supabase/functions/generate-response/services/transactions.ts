@@ -1,120 +1,92 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getTransactionsContext(supabase: any, userId: string) {
-  if (!userId) {
-    console.log('No user ID provided for transactions context');
-    return '[]';
+export async function getTransactionsContext(supabase: SupabaseClient, userId: string) {
+  const { data: transactions, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .limit(10);
+
+  if (error) {
+    console.error('Error fetching transactions:', error);
+    throw error;
   }
 
-  try {
-    const { data: transactions, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error('Error fetching transactions:', error);
-      throw error;
-    }
-
-    console.log('Successfully fetched transactions for user:', userId, 'count:', transactions?.length);
-    return JSON.stringify(transactions || []);
-  } catch (error) {
-    console.error('Error in getTransactionsContext:', error);
-    return '[]';
-  }
+  return transactions || [];
 }
 
 export async function addIncomeTransaction(
-  supabase: any, 
-  userId: string, 
-  amount: number, 
-  source: string
+  supabase: SupabaseClient,
+  userId: string,
+  amount: number,
+  source: string,
+  date?: string,
+  category?: string
 ) {
-  if (!userId) {
-    throw new Error('User ID is required for adding income transaction');
-  }
+  console.log('Adding income transaction:', { userId, amount, source, date, category });
 
-  try {
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert([{
-        user_id: userId,
-        amount: amount,
-        type: 'income',
-        description: source,
-        category: source,
-        date: new Date().toISOString().split('T')[0] // Just get YYYY-MM-DD
-      }])
-      .select()
-      .single();
+  // Ensure amount is positive
+  const positiveAmount = Math.abs(amount);
 
-    if (error) {
-      console.error('Error adding income transaction:', error);
-      throw error;
-    }
+  // Use current date if not provided
+  const transactionDate = date || new Date().toISOString().split('T')[0];
 
-    console.log('Successfully added income transaction:', data);
-    return JSON.stringify(data);
-  } catch (error) {
-    console.error('Error in addIncomeTransaction:', error);
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      amount: positiveAmount,
+      description: source,
+      date: transactionDate,
+      category: category || 'Income',
+      type: 'income'
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding income transaction:', error);
     throw error;
   }
+
+  console.log('Successfully added income transaction:', data);
+  return data;
 }
 
 export async function addExpenseTransaction(
-  supabase: any, 
-  userId: string, 
-  amount: number, 
-  category: string, 
-  date: string
+  supabase: SupabaseClient,
+  userId: string,
+  amount: number,
+  category: string,
+  date?: string
 ) {
-  if (!userId) {
-    throw new Error('User ID is required for adding expense transaction');
-  }
+  console.log('Adding expense transaction:', { userId, amount, category, date });
 
-  try {
-    // Convert DD-MM-YYYY to YYYY-MM-DD
-    const [day, month, year] = date.split('-');
-    if (!day || !month || !year || isNaN(+day) || isNaN(+month) || isNaN(+year)) {
-      throw new Error('Invalid date format. Expected DD-MM-YYYY');
-    }
-    
-    const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    
-    // Validate the date is reasonable
-    const dateObj = new Date(formattedDate);
-    if (isNaN(dateObj.getTime())) {
-      throw new Error('Invalid date');
-    }
+  // Ensure amount is negative for expenses
+  const negativeAmount = -Math.abs(amount);
 
-    console.log('Inserting expense with formatted date:', formattedDate);
+  // Use current date if not provided
+  const transactionDate = date || new Date().toISOString().split('T')[0];
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert([{
-        user_id: userId,
-        amount: -Math.abs(amount), // Ensure expense is stored as negative
-        type: 'expense',
-        description: category,
-        category: category,
-        date: formattedDate
-      }])
-      .select()
-      .single();
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      amount: negativeAmount,
+      category,
+      date: transactionDate,
+      type: 'expense'
+    })
+    .select()
+    .single();
 
-    if (error) {
-      console.error('Error adding expense transaction:', error);
-      throw error;
-    }
-
-    console.log('Successfully added expense transaction:', data);
-    return JSON.stringify(data);
-  } catch (error) {
-    console.error('Error in addExpenseTransaction:', error);
+  if (error) {
+    console.error('Error adding expense transaction:', error);
     throw error;
   }
+
+  console.log('Successfully added expense transaction:', data);
+  return data;
 }
