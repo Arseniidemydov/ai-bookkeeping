@@ -31,8 +31,82 @@ export async function createThread() {
   return thread.id;
 }
 
+async function getActiveRuns(threadId: string) {
+  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'OpenAI-Beta': 'assistants=v2'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to get runs: ${response.status} ${errorData}`);
+  }
+
+  const runs = await response.json();
+  const activeRuns = runs.data.filter((run: any) => 
+    ['queued', 'in_progress', 'requires_action'].includes(run.status)
+  );
+  
+  console.log(`Found ${activeRuns.length} active runs:`, JSON.stringify(activeRuns));
+  return activeRuns;
+}
+
+async function cancelRun(threadId: string, runId: string) {
+  try {
+    const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'OpenAI-Beta': 'assistants=v2'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to cancel run ${runId}:`, await response.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`Error canceling run ${runId}:`, error);
+    return false;
+  }
+}
+
+async function waitForActiveRuns(threadId: string) {
+  const maxAttempts = 30;
+  const initialDelay = 1000;
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    const activeRuns = await getActiveRuns(threadId);
+    
+    if (activeRuns.length === 0) {
+      return;
+    }
+
+    if (attempts > maxAttempts - 3) {
+      console.log('Getting close to timeout, attempting to cancel active runs...');
+      for (const run of activeRuns) {
+        await cancelRun(threadId, run.id);
+      }
+    }
+    
+    const delay = initialDelay * Math.pow(1.2, attempts);
+    console.log(`Thread has ${activeRuns.length} active runs. Waiting ${delay}ms... (Attempt ${attempts + 1}/${maxAttempts})`);
+    await sleep(delay);
+    attempts++;
+  }
+
+  throw new Error(`Timeout waiting for active runs to complete after ${maxAttempts} attempts`);
+}
+
 export async function addMessageToThread(threadId: string, content: string, fileUrl?: string) {
   try {
+    await waitForActiveRuns(threadId);
+
     let messageContent = [];
     
     if (content.trim()) {
@@ -162,7 +236,7 @@ export async function startAssistantRun(threadId: string) {
                     },
                     "date": {
                       "type": "string",
-                      "description": "The date of the income in DD-MM-YYYY format."
+                      "description": "The date of the income in YYYY-MM-DD format."
                     },
                     "category": {
                       "type": "string",
@@ -261,44 +335,4 @@ export async function getAssistantMessages(threadId: string) {
   }
 
   return await response.json();
-}
-
-export async function listActiveRuns(threadId: string) {
-  const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'OpenAI-Beta': 'assistants=v2'
-    }
-  });
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`Failed to list runs: ${response.status} ${errorData}`);
-  }
-
-  return await response.json();
-}
-
-export async function cancelActiveRun(threadId: string, runId: string) {
-  try {
-    const response = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}/cancel`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2'
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Failed to cancel run: ${response.status} ${errorData}`);
-    }
-
-    console.log(`Successfully cancelled run ${runId} for thread ${threadId}`);
-    return await response.json();
-  } catch (error) {
-    console.error(`Error cancelling run ${runId}:`, error);
-    throw error;
-  }
 }
