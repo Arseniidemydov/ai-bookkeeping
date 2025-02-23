@@ -188,7 +188,7 @@ export async function startAssistantRun(threadId: string) {
         body: JSON.stringify({
           assistant_id: 'asst_wn94DpzGVJKBFLR4wkh7btD2',
           model: 'gpt-4o',
-          temperature: 0.7,
+          temperature: 0.5,
           tools: [
             {
               "type": "function",
@@ -236,7 +236,7 @@ export async function startAssistantRun(threadId: string) {
                     },
                     "date": {
                       "type": "string",
-                      "description": "The date of the income in YYYY-MM-DD format."
+                      "description": "The date of the income in any of these formats: YYYY-MM-DD, DD.MM.YYYY, or DD․MM․YYYY"
                     },
                     "category": {
                       "type": "string",
@@ -274,7 +274,7 @@ export async function startAssistantRun(threadId: string) {
                     },
                     "date": {
                       "type": "string",
-                      "description": "The date of the expense in DD-MM-YYYY format."
+                      "description": "The date of the expense in any of these formats: YYYY-MM-DD, DD.MM.YYYY, or DD․MM․YYYY"
                     }
                   }
                 }

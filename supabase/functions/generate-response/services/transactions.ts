@@ -1,6 +1,18 @@
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
 
+function formatDate(dateStr: string): string {
+  // Handle date format dd.mm.yyyy or dd․mm․yyyy (with mid-dots)
+  if (dateStr.includes('.') || dateStr.includes('․')) {
+    const parts = dateStr.split(/[.․]/);
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+  return dateStr; // Return as-is if it's already in YYYY-MM-DD format
+}
+
 export async function getTransactionsContext(supabase: SupabaseClient, userId: string) {
   const { data: transactions, error } = await supabase
     .from('transactions')
@@ -30,8 +42,8 @@ export async function addIncomeTransaction(
   // Ensure amount is positive
   const positiveAmount = Math.abs(amount);
 
-  // Use current date if not provided
-  const transactionDate = date || new Date().toISOString().split('T')[0];
+  // Format date if provided, otherwise use current date
+  const transactionDate = date ? formatDate(date) : new Date().toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('transactions')
@@ -67,8 +79,8 @@ export async function addExpenseTransaction(
   // Ensure amount is negative for expenses
   const negativeAmount = -Math.abs(amount);
 
-  // Use current date if not provided
-  const transactionDate = date || new Date().toISOString().split('T')[0];
+  // Format date if provided, otherwise use current date
+  const transactionDate = date ? formatDate(date) : new Date().toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('transactions')
