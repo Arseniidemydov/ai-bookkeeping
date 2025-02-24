@@ -19,8 +19,8 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  // First, protect numeric values with currency
-  let formattedText = text.replace(/(\$[\d,\.]+)/g, '###AMOUNT###$1###AMOUNT###');
+  // First, protect entire amount-related phrases
+  let formattedText = text.replace(/([^.]\s*)(\$[\d,\.]+)(\s*[^.]|$)/g, '###AMOUNT###$1$2$3###AMOUNT###');
   
   // Then protect dates
   formattedText = formattedText.replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '###DATE###$1\u2024$2\u2024$3###DATE###');
