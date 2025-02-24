@@ -19,33 +19,56 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  // First, protect entire amount-related phrases but without capturing text before
-  let formattedText = text.replace(/(\$[\d,\.]+(?:\s*[^.]|$))/g, '###AMOUNT###$1###AMOUNT###');
-  
-  // Then protect dates
-  formattedText = formattedText.replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '###DATE###$1\u2024$2\u2024$3###DATE###');
-  
-  // Apply other formatting
-  formattedText = formattedText
-    .replace(/\\n/g, '\n')
-    .replace(/(\d+\.)/g, '\n$1');
-  
-  const segments = formattedText.split(/(\*\*.*?\*\*|###DATE###.*?###DATE###|###AMOUNT###.*?###AMOUNT###)/g);
-  
+  // Split text into segments that we want to process differently
+  const segments: { type: 'text' | 'bold' | 'amount' | 'date'; content: string }[] = [];
+  let currentText = text;
+
+  // Process the text sequentially
+  while (currentText.length > 0) {
+    // Check for bold text
+    if (currentText.startsWith('**')) {
+      const endBold = currentText.indexOf('**', 2);
+      if (endBold !== -1) {
+        const boldContent = currentText.slice(2, endBold);
+        segments.push({ type: 'bold', content: boldContent });
+        currentText = currentText.slice(endBold + 2);
+        continue;
+      }
+    }
+
+    // Check for amounts ($X,XXX.XX)
+    const amountMatch = currentText.match(/^\$[\d,\.]+/);
+    if (amountMatch) {
+      segments.push({ type: 'amount', content: amountMatch[0] });
+      currentText = currentText.slice(amountMatch[0].length);
+      continue;
+    }
+
+    // Check for dates (DD.MM.YYYY)
+    const dateMatch = currentText.match(/^\d{2}\.\d{2}\.\d{4}/);
+    if (dateMatch) {
+      segments.push({ type: 'date', content: dateMatch[0].replace(/\./g, '\u2024') });
+      currentText = currentText.slice(dateMatch[0].length);
+      continue;
+    }
+
+    // Take the next character as regular text if no special formats match
+    segments.push({ type: 'text', content: currentText[0] });
+    currentText = currentText.slice(1);
+  }
+
+  // Convert segments to React elements
   return segments.map((segment, index) => {
-    if (segment.startsWith('**') && segment.endsWith('**')) {
-      const boldText = segment.slice(2, -2);
-      return <span key={index} className="font-semibold whitespace-nowrap">{boldText}</span>;
+    switch (segment.type) {
+      case 'bold':
+        return <span key={index} className="font-semibold whitespace-nowrap">{segment.content}</span>;
+      case 'amount':
+        return <span key={index} className="whitespace-nowrap">{segment.content}</span>;
+      case 'date':
+        return <span key={index} className="whitespace-nowrap">{segment.content}</span>;
+      default:
+        return <span key={index} className="whitespace-pre-line">{segment.content}</span>;
     }
-    if (segment.startsWith('###DATE###') && segment.endsWith('###DATE###')) {
-      const dateText = segment.slice(10, -10);
-      return <span key={index} className="whitespace-nowrap">{dateText}</span>;
-    }
-    if (segment.startsWith('###AMOUNT###') && segment.endsWith('###AMOUNT###')) {
-      const amountText = segment.slice(11, -11);
-      return <span key={index} className="whitespace-nowrap">{amountText}</span>;
-    }
-    return <span key={index} className="whitespace-pre-line">{segment}</span>;
   });
 };
 
@@ -84,7 +107,6 @@ const downloadPDF = async (content: string) => {
     };
 
     await html2pdf().set(opt).from(element).save();
-
     document.body.removeChild(element);
     toast.success("Report downloaded as PDF");
   } catch (error) {
