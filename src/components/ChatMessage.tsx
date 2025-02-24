@@ -19,15 +19,18 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
-  // First, protect dates by replacing them with a special token
-  let formattedText = text.replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '###DATE###$1\u2024$2\u2024$3###DATE###');
+  // First, protect numeric values with currency
+  let formattedText = text.replace(/(\$[\d,\.]+)/g, '###AMOUNT###$1###AMOUNT###');
+  
+  // Then protect dates
+  formattedText = formattedText.replace(/(\d{2})\.(\d{2})\.(\d{4})/g, '###DATE###$1\u2024$2\u2024$3###DATE###');
   
   // Apply other formatting
   formattedText = formattedText
     .replace(/\\n/g, '\n')
     .replace(/(\d+\.)/g, '\n$1');
   
-  const segments = formattedText.split(/(\*\*.*?\*\*|###DATE###.*?###DATE###)/g);
+  const segments = formattedText.split(/(\*\*.*?\*\*|###DATE###.*?###DATE###|###AMOUNT###.*?###AMOUNT###)/g);
   
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
@@ -37,6 +40,10 @@ const formatBoldText = (text: string) => {
     if (segment.startsWith('###DATE###') && segment.endsWith('###DATE###')) {
       const dateText = segment.slice(10, -10);
       return <span key={index} className="whitespace-nowrap">{dateText}</span>;
+    }
+    if (segment.startsWith('###AMOUNT###') && segment.endsWith('###AMOUNT###')) {
+      const amountText = segment.slice(11, -11);
+      return <span key={index} className="whitespace-nowrap">{amountText}</span>;
     }
     return <span key={index} className="whitespace-pre-line">{segment}</span>;
   });

@@ -39,6 +39,13 @@ export function MessagesList({ messages, isTyping, messagesEndRef }: MessagesLis
     }
   }, [messages]);
 
+  // Add effect to scroll to bottom when typing starts
+  useEffect(() => {
+    if (isTyping) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [isTyping]);
+
   const handleScroll = () => {
     const container = containerRef.current;
     if (!container || isLoadingMore) return;
