@@ -19,9 +19,12 @@ interface ChatMessageProps {
 }
 
 const formatBoldText = (text: string) => {
+  // First, convert literal \n to actual line breaks
+  const textWithLineBreaks = text.replace(/\\n/g, '\n');
+  
   // Split text into segments that we want to process differently
   const segments: { type: 'text' | 'bold' | 'amount' | 'date'; content: string }[] = [];
-  let currentText = text;
+  let currentText = textWithLineBreaks;
 
   // Process the text sequentially
   while (currentText.length > 0) {
