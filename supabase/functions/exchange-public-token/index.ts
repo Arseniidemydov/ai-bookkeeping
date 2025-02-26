@@ -7,24 +7,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Handle CORS preflight requests
-const handleCors = (req: Request) => {
+serve(async (req: Request) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-};
-
-serve(async (req: Request) => {
-  const cors = handleCors(req);
-  if (cors) return cors;
 
   try {
     const { public_token, user_id } = await req.json();
+    
+    console.log('Received request with user_id:', user_id);
+    
     if (!public_token || !user_id) {
       throw new Error('Public token and user ID are required');
     }
 
     // Exchange public token for access token
+    console.log('Exchanging public token with Plaid...');
     const response = await fetch('https://sandbox.plaid.com/item/public_token/exchange', {
       method: 'POST',
       headers: {
@@ -38,6 +37,7 @@ serve(async (req: Request) => {
     });
 
     const data = await response.json();
+    console.log('Plaid exchange response:', data);
 
     if (!response.ok) {
       console.error('Plaid API error:', data);
@@ -45,6 +45,7 @@ serve(async (req: Request) => {
     }
 
     // Get institution info
+    console.log('Fetching institution info...');
     const institutionResponse = await fetch('https://sandbox.plaid.com/institutions/get_by_id', {
       method: 'POST',
       headers: {
@@ -59,8 +60,10 @@ serve(async (req: Request) => {
     });
 
     const institutionData = await institutionResponse.json();
+    console.log('Institution data:', institutionData);
 
     // Save to Supabase
+    console.log('Saving to Supabase...');
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') || '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
@@ -76,15 +79,22 @@ serve(async (req: Request) => {
         institution_name: institutionData.institution.name,
       });
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      console.error('Database error:', dbError);
+      throw dbError;
+    }
 
+    console.log('Successfully saved Plaid connection');
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error exchanging token:', error);
+    console.error('Error in exchange-public-token:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        details: error
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

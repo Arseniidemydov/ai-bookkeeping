@@ -299,17 +299,26 @@ export function Dashboard() {
       const handler = window.Plaid.create({
         token: data.link_token,
         onSuccess: async (public_token: string) => {
+          console.log('Plaid onSuccess called with public token');
           try {
-            const { error: exchangeError } = await supabase.functions.invoke('exchange-public-token', {
+            const exchangeResponse = await supabase.functions.invoke('exchange-public-token', {
               body: { 
                 public_token, 
                 user_id: user.id 
               }
             });
             
-            if (exchangeError) {
-              console.error('Exchange error:', exchangeError);
-              toast.error('Failed to connect bank account');
+            console.log('Exchange response:', exchangeResponse);
+            
+            if (exchangeResponse.error) {
+              console.error('Exchange error:', exchangeResponse.error);
+              toast.error(`Failed to connect bank account: ${exchangeResponse.error.message}`);
+              return;
+            }
+            
+            if (!exchangeResponse.data?.success) {
+              console.error('Exchange failed without error:', exchangeResponse);
+              toast.error('Failed to complete bank connection');
               return;
             }
             
