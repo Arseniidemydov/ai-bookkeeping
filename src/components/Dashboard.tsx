@@ -352,7 +352,25 @@ export function Dashboard() {
 
       {isExpanded && (
         <>
-          {connectedBanks && connectedBanks.length > 0 ? (
+          <Button
+            variant={connectedBanks && connectedBanks.length > 0 ? "default" : "outline"}
+            onClick={handleConnectBank}
+            disabled={connectedBanks && connectedBanks.length > 0}
+            className={cn(
+              "mb-6 w-full flex items-center justify-center gap-2",
+              connectedBanks && connectedBanks.length > 0
+                ? "bg-emerald-600 hover:bg-emerald-600 cursor-default"
+                : "text-white border-gray-700 hover:bg-gray-800/50"
+            )}
+          >
+            <CreditCard className="w-4 h-4" />
+            {connectedBanks && connectedBanks.length > 0
+              ? "Bank account connected"
+              : "Connect Bank Account"
+            }
+          </Button>
+
+          {connectedBanks && connectedBanks.length > 0 && (
             <div className="mb-6">
               <h3 className="text-lg font-medium text-white mb-4">Connected Bank Accounts</h3>
               <div className="space-y-2">
@@ -367,15 +385,6 @@ export function Dashboard() {
                 ))}
               </div>
             </div>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={handleConnectBank}
-              className="mb-6 w-full flex items-center justify-center gap-2 text-white border-gray-700 hover:bg-gray-800/50"
-            >
-              <CreditCard className="w-4 h-4" />
-              Connect Bank Account
-            </Button>
           )}
 
           <div className="mt-auto pt-4 space-y-3">
