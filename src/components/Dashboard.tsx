@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -43,7 +43,6 @@ export function Dashboard() {
   const [selectedImageTransaction, setSelectedImageTransaction] = useState<number | null>(null);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
-  const [isDeleteAccountDialogOpen, setIsDeleteAccountDialogOpen] = useState(false);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -84,74 +83,6 @@ export function Dashboard() {
     await supabase.auth.signOut();
     navigate('/auth');
   };
-
-  const handleDeleteAccount = async () => {
-    try {
-      const { error: deletionError } = await supabase.rpc('delete_user');
-      if (deletionError) throw deletionError;
-      
-      await supabase.auth.signOut();
-      navigate('/auth');
-      toast.success('Account deleted successfully');
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      toast.error('Failed to delete account');
-    }
-  };
-
-  const handleConnectBank = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
-
-      const { data, error } = await supabase.functions.invoke('create-link-token', {
-        body: { user_id: user.id }
-      });
-
-      if (error) throw error;
-      if (!data?.link_token) throw new Error('No link token received');
-
-      const handler = window.Plaid.create({
-        token: data.link_token,
-        onSuccess: async (public_token: string) => {
-          const { error: exchangeError } = await supabase.functions.invoke('exchange-public-token', {
-            body: { public_token, user_id: user.id }
-          });
-          
-          if (exchangeError) {
-            toast.error('Failed to connect bank account');
-            return;
-          }
-          
-          toast.success('Bank account connected successfully');
-          refetch();
-        },
-        onExit: () => {
-          toast.error('Bank connection cancelled');
-        },
-      });
-      
-      handler.open();
-    } catch (error) {
-      console.error('Error connecting bank:', error);
-      toast.error('Failed to initialize bank connection');
-    }
-  };
-
-  const { data: connectedBanks } = useQuery({
-    queryKey: ['connected-banks'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: connections, error } = await supabase
-        .from('plaid_connections')
-        .select('*');
-
-      if (error) throw error;
-      return connections || [];
-    }
-  });
 
   const handleDeleteTransaction = async (transactionId: number) => {
     try {
@@ -199,12 +130,12 @@ export function Dashboard() {
         label: "Total Income",
         value: totalIncome,
         type: 'income',
-        transactions: incomeTransactions as Transaction[]
+        transactions: incomeTransactions
       }, {
         label: "Total Expenses",
         value: Math.abs(totalExpenses),
         type: 'expense',
-        transactions: expenseTransactions as Transaction[]
+        transactions: expenseTransactions
       }, {
         label: "Estimated Tax (25%)",
         value: estimatedTax,
@@ -338,80 +269,12 @@ export function Dashboard() {
           </div>)}
       </div>
 
-      {isExpanded && (
-        <>
-          <div className="mt-6 border-t border-white/10 pt-6">
-            <h3 className="text-white/80 text-sm font-medium mb-4">Connected Bank Accounts</h3>
-            
-            {connectedBanks && connectedBanks.length > 0 ? (
-              <div className="space-y-3">
-                {connectedBanks.map((bank) => (
-                  <div 
-                    key={bank.id}
-                    className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CreditCard className="w-5 h-5 text-white/60" />
-                      <span className="text-white/80">{bank.institution_name}</span>
-                    </div>
-                    <span className="text-emerald-400 text-sm">Connected</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <Button 
-                onClick={handleConnectBank}
-                className="w-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center gap-2"
-              >
-                <CreditCard className="w-4 h-4" />
-                Connect Bank Account
-              </Button>
-            )}
-          </div>
-
-          <div className="mt-auto pt-4 space-y-3">
-            <Button 
-              variant="ghost" 
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white hover:bg-white/10"
-            >
-              <LogOut className="w-4 h-4" />
-              Log out
-            </Button>
-
-            <AlertDialog open={isDeleteAccountDialogOpen} onOpenChange={setIsDeleteAccountDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  variant="ghost"
-                  className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Account
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="bg-gray-900 border-gray-800">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete your account and remove your data from our servers.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
-                    Cancel
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDeleteAccount}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </>
-      )}
+      {isExpanded && <div className="mt-auto pt-4 flex justify-center">
+        <Button variant="destructive" onClick={handleLogout} className="w-full max-w-[200px] flex items-center justify-center gap-2">
+          <LogOut className="w-4 h-4" />
+          Log out
+        </Button>
+      </div>}
     </div>
 
     <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
