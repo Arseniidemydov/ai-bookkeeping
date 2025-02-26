@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { TransactionImageDialog } from "./TransactionImageDialog";
-
 type TimePeriod = 'day' | 'week' | 'month' | '3months' | '6months' | 'all';
 interface Transaction {
   id: number;
@@ -21,20 +20,17 @@ interface Transaction {
   type: 'income' | 'expense';
   description?: string;
 }
-
 interface GroupedTransactions {
   month: string;
   transactions: Transaction[];
   isExpanded: boolean;
 }
-
 interface FinancialMetric {
   label: string;
   value: number;
   type: 'income' | 'expense' | 'tax' | 'net';
   transactions?: Transaction[];
 }
-
 export function Dashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('month');
@@ -47,7 +43,6 @@ export function Dashboard() {
   const [isDeleteAccountDialogOpen, setIsDeleteAccountDialogOpen] = useState(false);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-
   const getDateRange = (period: TimePeriod) => {
     const now = new Date();
     switch (period) {
@@ -80,23 +75,23 @@ export function Dashboard() {
         return null;
     }
   };
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/auth');
   };
-
   const handleDeleteAccount = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: {
+          user
+        }
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       // Delete user's data
-      const { error: dataError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('user_id', user.id);
-
+      const {
+        error: dataError
+      } = await supabase.from('transactions').delete().eq('user_id', user.id);
       if (dataError) throw dataError;
 
       // Sign out
@@ -108,14 +103,11 @@ export function Dashboard() {
       toast.error('Failed to delete account');
     }
   };
-
   const handleDeleteTransaction = async (transactionId: number) => {
     try {
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', transactionId);
-      
+      const {
+        error
+      } = await supabase.from('transactions').delete().eq('id', transactionId);
       if (error) throw error;
       toast.success('Transaction deleted successfully');
       setSelectedTransactions(prev => prev.filter(t => t.id !== transactionId));
@@ -125,34 +117,33 @@ export function Dashboard() {
       console.error('Error deleting transaction:', error);
     }
   };
-
   const {
     data: financialData,
     refetch
   } = useQuery({
     queryKey: ['financial-metrics', selectedPeriod],
     queryFn: async () => {
-      const { data: session } = await supabase.auth.getSession();
+      const {
+        data: session
+      } = await supabase.auth.getSession();
       if (!session?.session?.user) return null;
-
       let query = supabase.from('transactions').select('*').eq('user_id', session.session.user.id);
       const dateRange = getDateRange(selectedPeriod);
       if (dateRange) {
         query = query.gte('date', dateRange.start.toISOString()).lte('date', dateRange.end.toISOString());
       }
-
-      const { data: transactions, error } = await query;
+      const {
+        data: transactions,
+        error
+      } = await query;
       if (error) throw error;
-
       const incomeTransactions = transactions?.filter(t => t.type === 'income') || [];
       const expenseTransactions = transactions?.filter(t => t.type === 'expense') || [];
-
       const totalIncome = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
       const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
       const profitBeforeTax = totalIncome - Math.abs(totalExpenses);
       const estimatedTax = profitBeforeTax > 0 ? profitBeforeTax * 0.25 : 0;
       const netIncome = profitBeforeTax - estimatedTax;
-
       return [{
         label: "Total Income",
         value: totalIncome,
@@ -174,7 +165,6 @@ export function Dashboard() {
       }] as FinancialMetric[];
     }
   });
-
   useEffect(() => {
     const channel = supabase.channel('transactions-changes').on('postgres_changes', {
       event: '*',
@@ -188,14 +178,12 @@ export function Dashboard() {
       supabase.removeChannel(channel);
     };
   }, [refetch]);
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(value);
   };
-
   const timePeriods: {
     label: string;
     value: TimePeriod;
@@ -218,7 +206,6 @@ export function Dashboard() {
     label: 'All Time',
     value: 'all'
   }];
-
   const visibleMetrics = isMobile && !isExpanded ? financialData?.slice(0, 2) : financialData;
   const handleMetricClick = (metric: FinancialMetric) => {
     if (metric.type === 'income' || metric.type === 'expense') {
@@ -227,13 +214,11 @@ export function Dashboard() {
       setIsTransactionsOpen(true);
     }
   };
-
   useEffect(() => {
     if (selectedTransactions.length > 0) {
       const grouped = selectedTransactions.reduce((acc: GroupedTransactions[], transaction) => {
         const monthKey = format(parseISO(transaction.date), 'MMMM yyyy');
         const existingGroup = acc.find(g => g.month === monthKey);
-        
         if (existingGroup) {
           existingGroup.transactions.push(transaction);
         } else {
@@ -243,85 +228,72 @@ export function Dashboard() {
             isExpanded: true
           });
         }
-        
         return acc;
       }, []);
-
       grouped.forEach(group => {
-        group.transactions.sort((a, b) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        group.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       });
-
-      grouped.sort((a, b) => 
-        new Date(b.transactions[0].date).getTime() - 
-        new Date(a.transactions[0].date).getTime()
-      );
-
+      grouped.sort((a, b) => new Date(b.transactions[0].date).getTime() - new Date(a.transactions[0].date).getTime());
       setGroupedTransactions(grouped);
     }
   }, [selectedTransactions]);
-
   const toggleMonthExpansion = (monthKey: string) => {
-    setGroupedTransactions(prev => 
-      prev.map(group => 
-        group.month === monthKey 
-          ? { ...group, isExpanded: !group.isExpanded }
-          : group
-      )
-    );
+    setGroupedTransactions(prev => prev.map(group => group.month === monthKey ? {
+      ...group,
+      isExpanded: !group.isExpanded
+    } : group));
   };
-
   const handleConnectBank = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: {
+          user
+        }
+      } = await supabase.auth.getUser();
       if (!user) {
         toast.error('Please sign in to connect your bank account');
         return;
       }
-
-      const { data, error } = await supabase.functions.invoke('create-link-token', {
-        body: { user_id: user.id }
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('create-link-token', {
+        body: {
+          user_id: user.id
+        }
       });
-
       if (error) {
         console.error('Error creating link token:', error);
         toast.error('Failed to initialize bank connection');
         return;
       }
-
       if (!data?.link_token) {
         console.error('No link token received');
         toast.error('Failed to initialize bank connection');
         return;
       }
-
       const handler = window.Plaid.create({
         token: data.link_token,
         onSuccess: async (public_token: string) => {
           console.log('Plaid onSuccess called with public token');
           try {
             const exchangeResponse = await supabase.functions.invoke('exchange-public-token', {
-              body: { 
-                public_token, 
-                user_id: user.id 
+              body: {
+                public_token,
+                user_id: user.id
               }
             });
-            
             console.log('Exchange response:', exchangeResponse);
-            
             if (exchangeResponse.error) {
               console.error('Exchange error:', exchangeResponse.error);
               toast.error(`Failed to connect bank account: ${exchangeResponse.error.message}`);
               return;
             }
-            
             if (!exchangeResponse.data?.success) {
               console.error('Exchange failed without error:', exchangeResponse);
               toast.error('Failed to complete bank connection');
               return;
             }
-            
             toast.success('Bank account connected successfully');
             refetch();
           } catch (error) {
@@ -333,34 +305,33 @@ export function Dashboard() {
           toast.error('Bank connection cancelled');
         }
       });
-      
       handler.open();
     } catch (error) {
       console.error('Error in handleConnectBank:', error);
       toast.error('Failed to initialize bank connection');
     }
   };
-
-  const { data: connectedBanks } = useQuery({
+  const {
+    data: connectedBanks
+  } = useQuery({
     queryKey: ['connected-banks'],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: {
+          user
+        }
+      } = await supabase.auth.getUser();
       if (!user) return [];
-
-      const { data: connections, error } = await supabase
-        .from('plaid_connections')
-        .select('*');
-
+      const {
+        data: connections,
+        error
+      } = await supabase.from('plaid_connections').select('*');
       if (error) throw error;
       return connections || [];
     }
   });
-
-  return <div className={cn(
-    "fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
-    isExpanded ? "h-screen" : isMobile ? "h-48" : "h-64"
-  )}>
-    <div className="p-4 h-full overflow-y-auto relative flex flex-col py-[22px]">
+  return <div className={cn("fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out", isExpanded ? "h-screen" : isMobile ? "h-48" : "h-64")}>
+    <div className="p-4 h-full overflow-y-auto relative flex flex-col py-[12px]">
       <div className="flex justify-between items-center mb-2 md:mb-4">
         <h2 className="text-lg font-medium text-white">Financial Overview</h2>
         <button onClick={() => setIsExpanded(!isExpanded)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
@@ -369,96 +340,45 @@ export function Dashboard() {
       </div>
 
       <div className="flex gap-2 mb-2 md:mb-4 overflow-x-auto pb-2">
-        {timePeriods.map(period => <button 
-          key={period.value} 
-          onClick={() => setSelectedPeriod(period.value)} 
-          className={cn(
-            "px-2 md:px-3 py-1 rounded-full text-xs md:text-sm whitespace-nowrap transition-colors", 
-            selectedPeriod === period.value 
-              ? "bg-primary text-primary-foreground" 
-              : "bg-white/5 text-white/60 hover:bg-white/10"
-          )}>
+        {timePeriods.map(period => <button key={period.value} onClick={() => setSelectedPeriod(period.value)} className={cn("px-2 md:px-3 py-1 rounded-full text-xs md:text-sm whitespace-nowrap transition-colors", selectedPeriod === period.value ? "bg-primary text-primary-foreground" : "bg-white/5 text-white/60 hover:bg-white/10")}>
             {period.label}
           </button>)}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4">
-        {visibleMetrics?.map(metric => <div 
-          key={metric.label} 
-          onClick={() => handleMetricClick(metric)} 
-          className={cn(
-            "p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80",
-            metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50",
-            metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50",
-            metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50",
-            metric.type === 'net' && "bg-blue-950/30 border-blue-800/50"
-          )}>
+        {visibleMetrics?.map(metric => <div key={metric.label} onClick={() => handleMetricClick(metric)} className={cn("p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80", metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50", metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50", metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50", metric.type === 'net' && "bg-blue-950/30 border-blue-800/50")}>
             <p className="text-xs md:text-sm font-medium text-white/60 mb-1 md:mb-2">{metric.label}</p>
-            <p className={cn(
-              "text-sm md:text-lg font-semibold",
-              metric.type === 'income' && "text-emerald-400",
-              metric.type === 'expense' && "text-rose-400",
-              metric.type === 'tax' && "text-amber-400",
-              metric.type === 'net' && "text-blue-400"
-            )}>
+            <p className={cn("text-sm md:text-lg font-semibold", metric.type === 'income' && "text-emerald-400", metric.type === 'expense' && "text-rose-400", metric.type === 'tax' && "text-amber-400", metric.type === 'net' && "text-blue-400")}>
               {formatCurrency(metric.value)}
             </p>
           </div>)}
       </div>
 
-      {isExpanded && (
-        <>
-          <Button
-            variant={connectedBanks && connectedBanks.length > 0 ? "default" : "outline"}
-            onClick={handleConnectBank}
-            disabled={connectedBanks && connectedBanks.length > 0}
-            className={cn(
-              "mb-6 w-full flex items-center justify-center gap-2",
-              connectedBanks && connectedBanks.length > 0
-                ? "bg-emerald-600 hover:bg-emerald-600 cursor-default text-white"
-                : "bg-white text-black border-white hover:bg-white/90"
-            )}
-          >
+      {isExpanded && <>
+          <Button variant={connectedBanks && connectedBanks.length > 0 ? "default" : "outline"} onClick={handleConnectBank} disabled={connectedBanks && connectedBanks.length > 0} className={cn("mb-6 w-full flex items-center justify-center gap-2", connectedBanks && connectedBanks.length > 0 ? "bg-emerald-600 hover:bg-emerald-600 cursor-default text-white" : "bg-white text-black border-white hover:bg-white/90")}>
             <CreditCard className="w-4 h-4" />
-            {connectedBanks && connectedBanks.length > 0
-              ? "Bank account connected"
-              : "Connect Bank Account"
-            }
+            {connectedBanks && connectedBanks.length > 0 ? "Bank account connected" : "Connect Bank Account"}
           </Button>
 
-          {connectedBanks && connectedBanks.length > 0 && (
-            <div className="mb-6">
+          {connectedBanks && connectedBanks.length > 0 && <div className="mb-6">
               <h3 className="text-lg font-medium text-white mb-4">Connected Bank Accounts</h3>
               <div className="space-y-2">
-                {connectedBanks.map((bank) => (
-                  <div
-                    key={bank.id}
-                    className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 flex items-center gap-3"
-                  >
+                {connectedBanks.map(bank => <div key={bank.id} className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 flex items-center gap-3">
                     <CreditCard className="w-5 h-5 text-blue-400" />
                     <span className="text-white">{bank.institution_name}</span>
-                  </div>
-                ))}
+                  </div>)}
               </div>
-            </div>
-          )}
+            </div>}
 
           <div className="mt-auto pt-4 space-y-3">
-            <Button 
-              variant="ghost" 
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white hover:bg-white/10"
-            >
+            <Button variant="ghost" onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white hover:bg-white/10">
               <LogOut className="w-4 h-4" />
               Log out
             </Button>
 
             <AlertDialog open={isDeleteAccountDialogOpen} onOpenChange={setIsDeleteAccountDialogOpen}>
               <AlertDialogTrigger asChild>
-                <Button 
-                  variant="ghost"
-                  className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30"
-                >
+                <Button variant="ghost" className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30">
                   <Trash2 className="w-4 h-4" />
                   Delete Account
                 </Button>
@@ -472,18 +392,14 @@ export function Dashboard() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDeleteAccount}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
+                  <AlertDialogAction onClick={handleDeleteAccount} className="bg-red-600 hover:bg-red-700">
                     Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           </div>
-        </>
-      )}
+        </>}
     </div>
 
     <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
@@ -492,57 +408,35 @@ export function Dashboard() {
           <DialogTitle className="text-white">{transactionType === 'income' ? 'Income' : 'Expense'} Transactions</DialogTitle>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto">
-          {groupedTransactions.map(group => (
-            <div key={group.month} className="mb-4">
-              <button
-                onClick={() => toggleMonthExpansion(group.month)}
-                className="w-full flex items-center justify-between p-3 bg-gray-800/50 rounded-lg mb-2 hover:bg-gray-800/70 transition-colors"
-              >
+          {groupedTransactions.map(group => <div key={group.month} className="mb-4">
+              <button onClick={() => toggleMonthExpansion(group.month)} className="w-full flex items-center justify-between p-3 bg-gray-800/50 rounded-lg mb-2 hover:bg-gray-800/70 transition-colors">
                 <span className="font-medium text-white">{group.month}</span>
-                {group.isExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
+                {group.isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
               </button>
               
-              {group.isExpanded && group.transactions.map(transaction => (
-                <div key={transaction.id} 
-                     className="flex items-center justify-between p-4 mb-2 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:bg-gray-800/50 transition-all">
+              {group.isExpanded && group.transactions.map(transaction => <div key={transaction.id} className="flex items-center justify-between p-4 mb-2 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:bg-gray-800/50 transition-all">
                   <div className="flex-1">
                     <p className="font-medium text-white">{transaction.category}</p>
                     <p className="text-sm text-gray-400">
                       {format(new Date(transaction.date), 'MMM dd, yyyy')}
                     </p>
-                    {transaction.description && (
-                      <p className="text-sm text-gray-500 mt-1">{transaction.description}</p>
-                    )}
+                    {transaction.description && <p className="text-sm text-gray-500 mt-1">{transaction.description}</p>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={cn("font-semibold", 
-                      transactionType === 'income' ? "text-emerald-400" : "text-rose-400")}>
+                    <span className={cn("font-semibold", transactionType === 'income' ? "text-emerald-400" : "text-rose-400")}>
                       {formatCurrency(transaction.amount)}
                     </span>
                     
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 hover:bg-gray-700/50"
-                      onClick={() => {
-                        setSelectedImageTransaction(transaction.id);
-                        setIsImageDialogOpen(true);
-                      }}
-                    >
+                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-700/50" onClick={() => {
+                  setSelectedImageTransaction(transaction.id);
+                  setIsImageDialogOpen(true);
+                }}>
                       <Image className="h-4 w-4 text-gray-400" />
                     </Button>
 
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-8 w-8 hover:bg-gray-700/50"
-                        >
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-700/50">
                           <Trash2 className="h-4 w-4 text-gray-400" />
                         </Button>
                       </AlertDialogTrigger>
@@ -555,34 +449,23 @@ export function Dashboard() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDeleteTransaction(transaction.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
+                          <AlertDialogAction onClick={() => handleDeleteTransaction(transaction.id)} className="bg-red-600 hover:bg-red-700">
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
-                </div>
-              ))}
-            </div>
-          ))}
-          {selectedTransactions.length === 0 && (
-            <p className="text-center text-gray-400 py-4">No transactions found</p>
-          )}
+                </div>)}
+            </div>)}
+          {selectedTransactions.length === 0 && <p className="text-center text-gray-400 py-4">No transactions found</p>}
         </div>
       </DialogContent>
     </Dialog>
 
-    <TransactionImageDialog
-      isOpen={isImageDialogOpen}
-      onClose={() => {
-        setIsImageDialogOpen(false);
-        setSelectedImageTransaction(null);
-      }}
-      transactionId={selectedImageTransaction}
-    />
+    <TransactionImageDialog isOpen={isImageDialogOpen} onClose={() => {
+      setIsImageDialogOpen(false);
+      setSelectedImageTransaction(null);
+    }} transactionId={selectedImageTransaction} />
   </div>;
 }
