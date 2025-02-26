@@ -7,10 +7,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-console.log('Edge function loaded and ready'); // Test log
+console.log('Edge function loaded and ready');
 
 serve(async (req: Request) => {
-  console.log('Received request to exchange-public-token'); // Test log at entry point
+  console.log('Received request to exchange-public-token');
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -19,9 +19,9 @@ serve(async (req: Request) => {
   }
 
   try {
-    console.log('Request method:', req.method); // Log request method
+    console.log('Request method:', req.method);
     const body = await req.json();
-    console.log('Received request body:', { ...body, public_token: '[REDACTED]' }); // Log request body safely
+    console.log('Received request body:', { ...body, public_token: '[REDACTED]' });
     
     const { public_token, user_id } = body;
     
@@ -54,31 +54,14 @@ serve(async (req: Request) => {
 
     const data = await response.json();
     console.log('Plaid exchange response status:', response.status);
+    console.log('Plaid exchange response data:', JSON.stringify(data));
     
-    if (!response.ok) {
-      console.error('Plaid API error:', data);
+    if (!response.ok || !data.access_token || !data.item_id) {
+      console.error('Plaid API error or missing data:', data);
       throw new Error(data.error_message || 'Failed to exchange token');
     }
 
-    // Get institution info
-    console.log('Fetching institution info...');
-    const institutionResponse = await fetch('https://sandbox.plaid.com/institutions/get_by_id', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'PLAID-CLIENT-ID': clientId,
-        'PLAID-SECRET': secret,
-      },
-      body: JSON.stringify({
-        institution_id: data.item.institution_id,
-        country_codes: ['US'],
-      }),
-    });
-
-    const institutionData = await institutionResponse.json();
-    console.log('Institution data received:', !!institutionData);
-
-    // Save to Supabase
+    // Save to Supabase directly without institution info
     console.log('Saving to Supabase...');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -95,9 +78,8 @@ serve(async (req: Request) => {
       .insert({
         user_id,
         access_token: data.access_token,
-        item_id: data.item.item_id,
-        institution_id: data.item.institution_id,
-        institution_name: institutionData.institution.name,
+        item_id: data.item_id,
+        institution_name: 'Connected Bank' // Default name
       });
 
     if (dbError) {
