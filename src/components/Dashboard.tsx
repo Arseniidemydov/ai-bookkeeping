@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,17 +22,18 @@ interface Transaction {
   type: 'income' | 'expense';
   description?: string;
 }
-interface FinancialMetric {
-  label: string;
-  value: number;
-  type: 'income' | 'expense' | 'tax' | 'net';
-  transactions?: Transaction[];
-}
 
 interface GroupedTransactions {
   month: string;
   transactions: Transaction[];
   isExpanded: boolean;
+}
+
+interface FinancialMetric {
+  label: string;
+  value: number;
+  type: 'income' | 'expense' | 'tax' | 'net';
+  transactions?: Transaction[];
 }
 
 export function Dashboard() {
@@ -43,6 +45,7 @@ export function Dashboard() {
   const [selectedImageTransaction, setSelectedImageTransaction] = useState<number | null>(null);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
+  const [isDeleteAccountDialogOpen, setIsDeleteAccountDialogOpen] = useState(false);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -84,11 +87,36 @@ export function Dashboard() {
     navigate('/auth');
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Delete user's data
+      const { error: dataError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (dataError) throw dataError;
+
+      // Sign out
+      await supabase.auth.signOut();
+      navigate('/auth');
+      toast.success('Account deleted successfully');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('Failed to delete account');
+    }
+  };
+
   const handleDeleteTransaction = async (transactionId: number) => {
     try {
-      const {
-        error
-      } = await supabase.from('transactions').delete().eq('id', transactionId);
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId);
+      
       if (error) throw error;
       toast.success('Transaction deleted successfully');
       setSelectedTransactions(prev => prev.filter(t => t.id !== transactionId));
@@ -269,12 +297,49 @@ export function Dashboard() {
           </div>)}
       </div>
 
-      {isExpanded && <div className="mt-auto pt-4 flex justify-center">
-        <Button variant="destructive" onClick={handleLogout} className="w-full max-w-[200px] flex items-center justify-center gap-2">
-          <LogOut className="w-4 h-4" />
-          Log out
-        </Button>
-      </div>}
+      {isExpanded && (
+        <div className="mt-auto pt-4 space-y-3">
+          <Button 
+            variant="ghost" 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white hover:bg-white/10"
+          >
+            <LogOut className="w-4 h-4" />
+            Log out
+          </Button>
+
+          <AlertDialog open={isDeleteAccountDialogOpen} onOpenChange={setIsDeleteAccountDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="ghost"
+                className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-gray-900 border-gray-800">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteAccount}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
 
     <Dialog open={isTransactionsOpen} onOpenChange={setIsTransactionsOpen}>
