@@ -275,38 +275,65 @@ export function Dashboard() {
   const handleConnectBank = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
+      if (!user) {
+        toast.error('Please sign in to connect your bank account');
+        return;
+      }
 
       const { data, error } = await supabase.functions.invoke('create-link-token', {
         body: { user_id: user.id }
       });
 
-      if (error) throw error;
-      if (!data?.link_token) throw new Error('No link token received');
+      if (error) {
+        console.error('Error creating link token:', error);
+        toast.error('Failed to initialize bank connection');
+        return;
+      }
+
+      if (!data?.link_token) {
+        console.error('No link token received');
+        toast.error('Failed to initialize bank connection');
+        return;
+      }
 
       const handler = window.Plaid.create({
         token: data.link_token,
         onSuccess: async (public_token: string) => {
-          const { error: exchangeError } = await supabase.functions.invoke('exchange-public-token', {
-            body: { public_token, user_id: user.id }
-          });
-          
-          if (exchangeError) {
+          try {
+            const { error: exchangeError } = await supabase.functions.invoke('exchange-public-token', {
+              body: { 
+                public_token, 
+                user_id: user.id 
+              }
+            });
+            
+            if (exchangeError) {
+              console.error('Exchange error:', exchangeError);
+              toast.error('Failed to connect bank account');
+              return;
+            }
+            
+            toast.success('Bank account connected successfully');
+            refetch();
+          } catch (error) {
+            console.error('Error in onSuccess:', error);
             toast.error('Failed to connect bank account');
-            return;
           }
-          
-          toast.success('Bank account connected successfully');
-          refetch();
         },
         onExit: () => {
           toast.error('Bank connection cancelled');
+        },
+        onLoad: () => {
+          // Optional: You can add a loading toast here if you want
+        },
+        onEvent: (eventName: string) => {
+          console.log('Plaid event:', eventName);
         },
       });
       
       handler.open();
     } catch (error) {
-      console.error('Error connecting bank:', error);
+      console.error('Error in handleConnectBank:', error);
       toast.error('Failed to initialize bank connection');
     }
   };
@@ -415,9 +442,7 @@ export function Dashboard() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
-                    Cancel
-                  </AlertDialogCancel>
+                  <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleDeleteAccount}
                     className="bg-red-600 hover:bg-red-700"
