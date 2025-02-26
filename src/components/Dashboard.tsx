@@ -322,13 +322,7 @@ export function Dashboard() {
         },
         onExit: () => {
           toast.error('Bank connection cancelled');
-        },
-        onLoad: () => {
-          // Optional: You can add a loading toast here if you want
-        },
-        onEvent: (eventName: string) => {
-          console.log('Plaid event:', eventName);
-        },
+        }
       });
       
       handler.open();
