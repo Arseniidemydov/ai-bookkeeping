@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Device } from '@capacitor/core';
+import { Device } from '@capacitor/device';
 
 const Index = () => {
   const [text, setText] = useState("");
