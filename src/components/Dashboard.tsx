@@ -359,8 +359,8 @@ export function Dashboard() {
             className={cn(
               "mb-6 w-full flex items-center justify-center gap-2",
               connectedBanks && connectedBanks.length > 0
-                ? "bg-emerald-600 hover:bg-emerald-600 cursor-default"
-                : "text-white border-gray-700 hover:bg-gray-800/50"
+                ? "bg-emerald-600 hover:bg-emerald-600 cursor-default text-white"
+                : "bg-white text-black border-white hover:bg-white/90"
             )}
           >
             <CreditCard className="w-4 h-4" />
