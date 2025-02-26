@@ -2,9 +2,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
+import { Device } from '@capacitor/core';
 
 const Index = () => {
   const [text, setText] = useState("");
+  const [platform, setPlatform] = useState("");
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const texts = [
     "Your AI Bookkeeper",
@@ -16,7 +18,7 @@ const Index = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTextIndex((prevIndex) => (prevIndex + 1) % texts.length);
-    }, 4000); // Delay between text changes
+    }, 4000);
 
     return () => clearInterval(interval);
   }, []);
@@ -33,10 +35,18 @@ const Index = () => {
       } else {
         clearInterval(typingInterval);
       }
-    }, 100); // Typing speed
+    }, 100);
 
     return () => clearInterval(typingInterval);
   }, [currentTextIndex]);
+
+  useEffect(() => {
+    const getPlatform = async () => {
+      const info = await Device.getInfo();
+      setPlatform(info.platform || 'web');
+    };
+    getPlatform();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
@@ -44,6 +54,9 @@ const Index = () => {
         <h1 className="text-2xl md:text-3xl font-light text-white min-h-[80px] tracking-wide">
           {text}
         </h1>
+        {platform && (
+          <p className="text-white/60">Running on {platform}</p>
+        )}
         <Button 
           onClick={() => navigate('/auth')}
           className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white px-8 py-6 text-xl rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
