@@ -356,25 +356,51 @@ export function Dashboard() {
     }
   });
 
-  return <div className={cn("fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out", isExpanded ? "h-screen" : "h-64")}>
+  return <div className={cn(
+    "fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out",
+    isExpanded ? "h-screen" : isMobile ? "h-48" : "h-64"
+  )}>
     <div className="p-4 h-full overflow-y-auto relative flex flex-col py-[22px]">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-2 md:mb-4">
         <h2 className="text-lg font-medium text-white">Financial Overview</h2>
         <button onClick={() => setIsExpanded(!isExpanded)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
           {isExpanded ? <Minimize2 className="w-5 h-5 text-white/80" /> : <Maximize2 className="w-5 h-5 text-white/80" />}
         </button>
       </div>
 
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-        {timePeriods.map(period => <button key={period.value} onClick={() => setSelectedPeriod(period.value)} className={cn("px-3 py-1 rounded-full text-sm whitespace-nowrap transition-colors", selectedPeriod === period.value ? "bg-primary text-primary-foreground" : "bg-white/5 text-white/60 hover:bg-white/10")}>
+      <div className="flex gap-2 mb-2 md:mb-4 overflow-x-auto pb-2">
+        {timePeriods.map(period => <button 
+          key={period.value} 
+          onClick={() => setSelectedPeriod(period.value)} 
+          className={cn(
+            "px-2 md:px-3 py-1 rounded-full text-xs md:text-sm whitespace-nowrap transition-colors", 
+            selectedPeriod === period.value 
+              ? "bg-primary text-primary-foreground" 
+              : "bg-white/5 text-white/60 hover:bg-white/10"
+          )}>
             {period.label}
           </button>)}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        {visibleMetrics?.map(metric => <div key={metric.label} onClick={() => handleMetricClick(metric)} className={cn("p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80", metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50", metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50", metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50", metric.type === 'net' && "bg-blue-950/30 border-blue-800/50")}>
-            <p className="text-sm font-medium text-white/60 mb-2">{metric.label}</p>
-            <p className={cn("text-lg font-semibold", metric.type === 'income' && "text-emerald-400", metric.type === 'expense' && "text-rose-400", metric.type === 'tax' && "text-amber-400", metric.type === 'net' && "text-blue-400")}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4">
+        {visibleMetrics?.map(metric => <div 
+          key={metric.label} 
+          onClick={() => handleMetricClick(metric)} 
+          className={cn(
+            "p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 h-auto cursor-pointer hover:opacity-80",
+            metric.type === 'income' && "bg-emerald-950/30 border-emerald-800/50",
+            metric.type === 'expense' && "bg-rose-950/30 border-rose-800/50",
+            metric.type === 'tax' && "bg-amber-950/30 border-amber-800/50",
+            metric.type === 'net' && "bg-blue-950/30 border-blue-800/50"
+          )}>
+            <p className="text-xs md:text-sm font-medium text-white/60 mb-1 md:mb-2">{metric.label}</p>
+            <p className={cn(
+              "text-sm md:text-lg font-semibold",
+              metric.type === 'income' && "text-emerald-400",
+              metric.type === 'expense' && "text-rose-400",
+              metric.type === 'tax' && "text-amber-400",
+              metric.type === 'net' && "text-blue-400"
+            )}>
               {formatCurrency(metric.value)}
             </p>
           </div>)}
