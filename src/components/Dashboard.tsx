@@ -199,12 +199,12 @@ export function Dashboard() {
         label: "Total Income",
         value: totalIncome,
         type: 'income',
-        transactions: incomeTransactions
+        transactions: incomeTransactions as Transaction[]
       }, {
         label: "Total Expenses",
         value: Math.abs(totalExpenses),
         type: 'expense',
-        transactions: expenseTransactions
+        transactions: expenseTransactions as Transaction[]
       }, {
         label: "Estimated Tax (25%)",
         value: estimatedTax,
