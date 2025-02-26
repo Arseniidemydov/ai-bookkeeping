@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp } from "lucide-react";
+import { Maximize2, Minimize2, LogOut, Trash2, Image, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -273,6 +272,60 @@ export function Dashboard() {
     );
   };
 
+  const handleConnectBank = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      const { data, error } = await supabase.functions.invoke('create-link-token', {
+        body: { user_id: user.id }
+      });
+
+      if (error) throw error;
+      if (!data?.link_token) throw new Error('No link token received');
+
+      const handler = window.Plaid.create({
+        token: data.link_token,
+        onSuccess: async (public_token: string) => {
+          const { error: exchangeError } = await supabase.functions.invoke('exchange-public-token', {
+            body: { public_token, user_id: user.id }
+          });
+          
+          if (exchangeError) {
+            toast.error('Failed to connect bank account');
+            return;
+          }
+          
+          toast.success('Bank account connected successfully');
+          refetch();
+        },
+        onExit: () => {
+          toast.error('Bank connection cancelled');
+        },
+      });
+      
+      handler.open();
+    } catch (error) {
+      console.error('Error connecting bank:', error);
+      toast.error('Failed to initialize bank connection');
+    }
+  };
+
+  const { data: connectedBanks } = useQuery({
+    queryKey: ['connected-banks'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data: connections, error } = await supabase
+        .from('plaid_connections')
+        .select('*');
+
+      if (error) throw error;
+      return connections || [];
+    }
+  });
+
   return <div className={cn("fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10 transition-all duration-300 ease-in-out", isExpanded ? "h-screen" : "h-64")}>
     <div className="p-4 h-full overflow-y-auto relative flex flex-col py-[22px]">
       <div className="flex justify-between items-center mb-4">
@@ -298,47 +351,75 @@ export function Dashboard() {
       </div>
 
       {isExpanded && (
-        <div className="mt-auto pt-4 space-y-3">
-          <Button 
-            variant="ghost" 
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white hover:bg-white/10"
-          >
-            <LogOut className="w-4 h-4" />
-            Log out
-          </Button>
+        <>
+          {connectedBanks && connectedBanks.length > 0 ? (
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-white mb-4">Connected Bank Accounts</h3>
+              <div className="space-y-2">
+                {connectedBanks.map((bank) => (
+                  <div
+                    key={bank.id}
+                    className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 flex items-center gap-3"
+                  >
+                    <CreditCard className="w-5 h-5 text-blue-400" />
+                    <span className="text-white">{bank.institution_name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={handleConnectBank}
+              className="mb-6 w-full flex items-center justify-center gap-2 text-white border-gray-700 hover:bg-gray-800/50"
+            >
+              <CreditCard className="w-4 h-4" />
+              Connect Bank Account
+            </Button>
+          )}
 
-          <AlertDialog open={isDeleteAccountDialogOpen} onOpenChange={setIsDeleteAccountDialogOpen}>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="ghost"
-                className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Account
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="bg-gray-900 border-gray-800">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete your account and remove your data from our servers.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDeleteAccount}
-                  className="bg-red-600 hover:bg-red-700"
+          <div className="mt-auto pt-4 space-y-3">
+            <Button 
+              variant="ghost" 
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white hover:bg-white/10"
+            >
+              <LogOut className="w-4 h-4" />
+              Log out
+            </Button>
+
+            <AlertDialog open={isDeleteAccountDialogOpen} onOpenChange={setIsDeleteAccountDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="ghost"
+                  className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30"
                 >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+                  <Trash2 className="w-4 h-4" />
+                  Delete Account
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-900 border-gray-800">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Delete Account</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteAccount}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </>
       )}
     </div>
 
