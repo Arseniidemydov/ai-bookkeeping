@@ -41,9 +41,16 @@ const Index = () => {
   }, [currentTextIndex]);
 
   useEffect(() => {
+    console.log("Index component mounted");
     const getPlatform = async () => {
-      const info = await Device.getInfo();
-      setPlatform(info.platform || 'web');
+      try {
+        const info = await Device.getInfo();
+        console.log("Device info retrieved:", info);
+        setPlatform(info.platform || 'web');
+      } catch (error) {
+        console.error("Error getting device info:", error);
+        setPlatform('unknown');
+      }
     };
     getPlatform();
   }, []);
