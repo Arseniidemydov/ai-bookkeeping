@@ -2,7 +2,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.b59393f8d8a24b95852532be3adfd8c9',
+  appId: 'com.lovable.bookkeeping',
   appName: 'ai-bookkeeping',
   webDir: 'dist',
   server: {
