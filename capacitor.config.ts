@@ -2,7 +2,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.lovable.bookkeeping',
+  appId: 'ai.bookkeeping.arsenii.demydov',
   appName: 'ai-bookkeeping',
   webDir: 'dist',
   bundledWebRuntime: false,
