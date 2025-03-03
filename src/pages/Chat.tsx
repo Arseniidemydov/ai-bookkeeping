@@ -18,6 +18,13 @@ const Chat = () => {
     if (!hasSeenWelcome) {
       setShowWelcome(true);
     }
+    
+    // Add a class to the body for mobile styling
+    document.body.classList.add('bg-black');
+    
+    return () => {
+      document.body.classList.remove('bg-black');
+    };
   }, []);
 
   const handleWelcomeClose = () => {
@@ -26,7 +33,7 @@ const Chat = () => {
   };
 
   return (
-    <div className="h-screen bg-gray-900 flex flex-col">
+    <div className="h-screen bg-black flex flex-col">
       <Dashboard />
       <ChatContainer />
       

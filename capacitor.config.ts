@@ -10,7 +10,8 @@ const config: CapacitorConfig = {
     androidScheme: 'https'
   },
   ios: {
-    contentInset: 'automatic'
+    contentInset: 'automatic',
+    backgroundColor: '#000000' // Adding black background color to match our app
   }
 };
 

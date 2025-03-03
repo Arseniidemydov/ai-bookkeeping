@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -33,7 +34,13 @@
   }
   
   body {
-    @apply bg-gray-900 text-foreground antialiased;
+    @apply bg-black text-foreground antialiased;
+  }
+  
+  /* Ensure the entire app takes up full height on mobile */
+  html, body, #root {
+    height: 100%;
+    overflow-x: hidden;
   }
 }
 

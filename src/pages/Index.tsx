@@ -20,7 +20,13 @@ const Index = () => {
       setCurrentTextIndex((prevIndex) => (prevIndex + 1) % texts.length);
     }, 4000);
 
-    return () => clearInterval(interval);
+    // Add a class to the body for mobile styling
+    document.body.classList.add('bg-black');
+    
+    return () => {
+      clearInterval(interval);
+      document.body.classList.remove('bg-black');
+    };
   }, []);
 
   useEffect(() => {
