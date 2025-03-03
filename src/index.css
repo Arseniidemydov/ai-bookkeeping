@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,8 +33,21 @@
     @apply border-border selection:bg-white/10 selection:text-white;
   }
   
-  body {
+  html, body {
     @apply bg-gray-900 text-foreground antialiased;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+    overflow: hidden;
+  }
+  
+  #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
   }
 }
 
@@ -133,4 +147,11 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Ensure scrollable containers don't affect the body scroll */
+.scrollable-content {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }

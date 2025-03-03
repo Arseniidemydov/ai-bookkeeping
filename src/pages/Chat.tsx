@@ -26,9 +26,11 @@ const Chat = () => {
   };
 
   return (
-    <div className="h-screen bg-gray-900 flex flex-col">
+    <div className="h-full bg-gray-900 flex flex-col overflow-hidden">
       <Dashboard />
-      <ChatContainer />
+      <div className="flex-1 overflow-hidden">
+        <ChatContainer />
+      </div>
       
       <Dialog open={showWelcome} onOpenChange={handleWelcomeClose}>
         <DialogContent className="bg-gray-800 text-white border-gray-700">
