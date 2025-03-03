@@ -4,7 +4,6 @@ import { Camera, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TransactionImageUploadProps {
   onSuccess?: () => void;
@@ -12,7 +11,6 @@ interface TransactionImageUploadProps {
 
 export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const isMobile = useIsMobile();
 
   const handleImageUpload = async (file: File) => {
     try {
@@ -91,7 +89,7 @@ export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProp
   return (
     <div className="flex flex-col gap-2 mt-2">
       <p className="text-sm text-white/80">Would you like to attach picture?</p>
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2">
         <input
           type="file"
           accept="image/*"
@@ -107,27 +105,25 @@ export function TransactionImageUpload({ onSuccess }: TransactionImageUploadProp
           className="hidden"
           id="gallery-input"
         />
-        <label htmlFor="camera-input" className="flex-1 min-w-[120px]">
+        <label htmlFor="camera-input">
           <Button
-            className="w-full bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
+            className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
             disabled={isUploading}
-            size={isMobile ? "sm" : "default"}
             asChild
           >
-            <span className="flex items-center justify-center">
+            <span>
               <Camera className="w-4 h-4 mr-2" />
               Take Photo
             </span>
           </Button>
         </label>
-        <label htmlFor="gallery-input" className="flex-1 min-w-[120px]">
+        <label htmlFor="gallery-input">
           <Button
-            className="w-full bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
+            className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl shadow-lg transition-all duration-300 hover:scale-105 border border-white/10"
             disabled={isUploading}
-            size={isMobile ? "sm" : "default"}
             asChild
           >
-            <span className="flex items-center justify-center">
+            <span>
               <ImagePlus className="w-4 h-4 mr-2" />
               Choose Image
             </span>
